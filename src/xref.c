@@ -123,6 +123,14 @@ struct cos_dictionary_entry {
     struct cos_object *value;
 };
 
+struct cos_array_entry {
+    /** next value in array */
+    struct cos_array_entry *next;
+
+    /** value */
+    struct cos_object *value;
+};
+
 
 struct cos_reference {
     /** id of indirect object */
@@ -155,6 +163,9 @@ struct cos_object {
 
         /* dictionary */
         struct cos_dictionary_entry *dictionary;
+
+        /* array */
+        struct cos_array_entry *array;
 
         /** reference */
         struct cos_reference *reference;
@@ -470,6 +481,24 @@ int cos_decode_hex_string(struct pdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
+    uint64_t offset;
+    struct cos_object *cosobj;
+    uint8_t c;
+    uint8_t byte;
+
+    offset = *offset_out;
+
+    c = DOC_BYTE(doc, offset++);
+    if (c != '<') {
+        return -1; /* syntax error */
+    }
+    doc_skip_ws(doc, &offset);
+
+    while (c != '>') {
+        c = DOC_BYTE(doc, offset++);
+        doc_skip_ws(doc, &offset);
+    }
+
     return -1;
 }
 
@@ -551,7 +580,56 @@ int cos_decode_list(struct pdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
-    return -1;
+    uint64_t offset;
+    struct cos_object *cosobj;
+    struct cos_array_entry *entry;
+    struct cos_object *value;
+    int res;
+
+    offset = *offset_out;
+
+    if (DOC_BYTE(doc, offset) != '[') {
+        return -1; /* syntax error */
+    }
+    offset++;
+    doc_skip_ws(doc, &offset);
+
+    printf("found a list\n");
+
+    cosobj = calloc(1, sizeof(struct cos_object));
+    if (cosobj == NULL) {
+        return -1; /* memory error */
+    }
+    cosobj->type = COS_TYPE_ARRAY;
+
+    while (DOC_BYTE(doc, offset) != ']') {
+
+        res = cos_decode_object(doc, &offset, &value);
+        if (res != 0) {
+            /* todo free up any array entries already created */
+            return res;
+        }
+
+        /* add array entry */
+        entry = calloc(1, sizeof(struct cos_array_entry));
+        if (entry == NULL) {
+            /* todo free up any array entries already created */
+            return -1; /* memory error */
+        }
+
+        entry->value = value;
+        entry->next = cosobj->u.array;
+
+        cosobj->u.array = entry;
+
+    }
+    offset++; /* skip closing ] */
+    doc_skip_ws(doc, &offset);
+
+    *cosobj_out = cosobj;
+    *offset_out = offset;
+
+    return 0;
 }
 
 #define NAME_MAX_LENGTH 127
@@ -750,7 +828,7 @@ int cos_attempt_decode_reference(struct pdf_doc *doc,
 
     offset = *offset_out;
 
-    res = cos_decode_object(doc, &offset, &cosobj);
+    res = cos_decode_number(doc, &offset, &cosobj);
     if (res != 0) {
         return 0; /* no error if object could not be decoded */
     }
