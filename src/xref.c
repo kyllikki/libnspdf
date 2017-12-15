@@ -5,95 +5,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "byte_class.h"
+
 #define SLEN(x) (sizeof((x)) - 1)
-
-#define BC_NONE 0
-#define BC_WSPC 1 /* character is whitespace */
-#define BC_EOLM (1<<1) /* character signifies end of line */
-#define BC_DCML (1<<2) /* character is a decimal */
-#define BC_HEXL (1<<3) /* character is a hexadecimal */
-#define BC_DELM (1<<4) /* character is a delimiter */
-
-/**
- * pdf byte classification
- */
-uint8_t bclass[] = {
-    BC_WSPC, BC_NONE, BC_NONE, BC_NONE, /* 00 - 03 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 04 - 07 */
-    BC_NONE, BC_WSPC, BC_WSPC | BC_EOLM, BC_NONE, /* 08 - 0B */
-    BC_WSPC, BC_WSPC | BC_EOLM, BC_NONE, BC_NONE, /* 0C - 0F */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 10 - 13 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 14 - 17 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 18 - 1B */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 1C - 1F */
-    BC_WSPC, BC_NONE, BC_NONE, BC_NONE, /* 20 - 23 */
-    BC_NONE, BC_DELM,                     /* '$' '%' */
-    BC_NONE, BC_NONE,                     /* 26 - 27 */
-    BC_DELM, BC_DELM,                     /* '(' ')' */
-    BC_NONE, BC_NONE,                     /* 2A - 2B */
-    BC_NONE, BC_NONE,                     /* 2C - 2D */
-    BC_NONE, BC_DELM,                     /* '.' '/' */
-    BC_DCML | BC_HEXL, BC_DCML | BC_HEXL, /* '0' '1' */
-    BC_DCML | BC_HEXL, BC_DCML | BC_HEXL, /* '2' '3' */
-    BC_DCML | BC_HEXL, BC_DCML | BC_HEXL, /* '4' '5' */
-    BC_DCML | BC_HEXL, BC_DCML | BC_HEXL, /* '6' '7' */
-    BC_DCML | BC_HEXL, BC_DCML | BC_HEXL, /* '8' '9' */
-    BC_NONE, BC_NONE,                     /* ':' ';' */
-    BC_DELM, BC_NONE,                     /* '<' '=' */
-    BC_DELM, BC_NONE,                     /* '>' '?' */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 40 - 43 */
-    BC_NONE, BC_HEXL, BC_HEXL, BC_HEXL, /* 44 - 47 */
-    BC_HEXL, BC_HEXL, BC_HEXL, BC_NONE, /* 48 - 4B */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 4C - 4F */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 50 - 53 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 54 - 57 */
-    BC_NONE, BC_NONE,                   /* 58 - 59 */
-    BC_NONE, BC_DELM,                   /* 'Z' '[' */
-    BC_NONE, BC_DELM,                   /* '\' ']' */
-    BC_NONE, BC_NONE,                   /* 5E - 5F */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_HEXL, BC_HEXL, BC_HEXL, /* 60 - 67 */
-    BC_HEXL, BC_HEXL, BC_HEXL, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 68 - 6F */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 70 - 77 */
-    BC_NONE, BC_NONE,                   /* 78 - 79 */
-    BC_NONE, BC_DELM,                   /* 'z' '{' */
-    BC_NONE, BC_DELM,                   /* '|' '}' */
-    BC_NONE, BC_NONE,                   /* 7E - 7F */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 80 - 83 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 84 - 87 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 88 - 8F */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 90 - 97 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* 98 - 9F */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* A0 - A7 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* A8 - AF */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* B0 - B7 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* B8 - BF */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* C0 - C7 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* C8 - CF */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* D0 - D7 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* D8 - DF */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* E0 - E7 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* E8 - EF */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* F0 - F7 */
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE,
-    BC_NONE, BC_NONE, BC_NONE, BC_NONE, /* F8 - FF */
-};
 
 enum cos_type {
     COS_TYPE_NULL,

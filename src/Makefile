@@ -6,7 +6,7 @@ CFLAGS+=-g -Wall
 
 all:xref
 
-xref:xref.o
+xref:xref.o byte_class.o
 
 clean:
 	${RM} xref xref.o
