@@ -2,8 +2,11 @@
 
 CFLAGS+=-g -Wall
 
-.PHONY:all
+.PHONY:all clean
 
 all:xref
 
 xref:xref.o
+
+clean:
+	${RM} xref xref.o
