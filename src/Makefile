@@ -1,6 +1,6 @@
 #
 
-CFLAGS+=-g -Wall
+CFLAGS+=-g -Wall -Wextra
 
 .PHONY:all clean
 

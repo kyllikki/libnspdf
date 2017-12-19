@@ -11,6 +11,7 @@
  *     decimal - characters that appear in decimal values 0123456789
  *     hexidecimal - characters that appear in hex values 0123456789ABCDEF
  *   delimiter - The characters used to separate tokens ()[]{}<>/%
+ *     comment - the % character used to introduce a comment
  *   whitespace - separate syntactic constructs like names and numbers treated
  *                as a single character except in comments, strings and streams
  *     end of line - characters that signify an end of line
@@ -52,8 +53,8 @@ const uint8_t byte_classification[] = {
     BC_RGLR,
     BC_RGLR,
     BC_RGLR, /* 20 - 23 */
-    BC_RGLR,
-    BC_DELM,                     /* '$' '%' */
+    BC_RGLR,           /* 24 - '$' */
+    BC_DELM | BC_CMNT, /* 25 - '%' */
     BC_RGLR,
     BC_RGLR,                     /* 26 - 27 */
     BC_DELM,
@@ -64,14 +65,14 @@ const uint8_t byte_classification[] = {
     BC_RGLR,                     /* 2C - 2D */
     BC_RGLR,
     BC_DELM,                     /* '.' '/' */
-    BC_DCML | BC_HEXL,
-    BC_DCML | BC_HEXL, /* '0' '1' */
-    BC_DCML | BC_HEXL,
-    BC_DCML | BC_HEXL, /* '2' '3' */
-    BC_DCML | BC_HEXL,
-    BC_DCML | BC_HEXL, /* '4' '5' */
-    BC_DCML | BC_HEXL,
-    BC_DCML | BC_HEXL, /* '6' '7' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 30 - '0' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 31 - '1' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 32 - '2' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 33 - '3' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 34 - '4' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 35 - '5' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 36 - '6' */
+    BC_OCTL | BC_DCML | BC_HEXL, /* 37 - '7' */
     BC_DCML | BC_HEXL,
     BC_DCML | BC_HEXL, /* '8' '9' */
     BC_RGLR,
@@ -181,4 +182,4 @@ const uint8_t byte_classification[] = {
     BC_RGLR, BC_RGLR, BC_RGLR, BC_RGLR, /* F8 - FF */
 };
 
-const uint8_t *blcass = &byte_classification[0];
+const uint8_t *bclass = &byte_classification[0];
