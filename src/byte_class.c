@@ -17,54 +17,54 @@
  *     end of line - characters that signify an end of line
  */
 const uint8_t byte_classification[] = {
-    BC_WSPC,           /* 00 - NULL */
-    BC_RGLR,           /* 01 */
-    BC_RGLR,           /* 02 */
-    BC_RGLR,           /* 03 */
-    BC_RGLR,           /* 04 */
-    BC_RGLR,           /* 05 */
-    BC_RGLR,           /* 06 */
-    BC_RGLR,           /* 07 */
-    BC_RGLR,           /* 08 */
-    BC_WSPC,           /* 09 - HT */
-    BC_WSPC | BC_EOLM, /* 0A - LF */
-    BC_RGLR,           /* 0B */
-    BC_WSPC,           /* 0C - FF */
-    BC_WSPC | BC_EOLM, /* 0D - CR */
-    BC_RGLR,           /* 0E */
-    BC_RGLR,           /* 0F */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 10 - 13 */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 14 - 17 */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 18 - 1B */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 1C - 1F */
-    BC_WSPC, /* 20 - SP */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 20 - 23 */
-    BC_RGLR,           /* 24 - '$' */
-    BC_DELM | BC_CMNT, /* 25 - '%' */
-    BC_RGLR,
-    BC_RGLR,                     /* 26 - 27 */
-    BC_DELM,
-    BC_DELM,                     /* '(' ')' */
-    BC_RGLR,
-    BC_RGLR,                     /* 2A - 2B */
-    BC_RGLR,
-    BC_RGLR,                     /* 2C - 2D */
-    BC_RGLR,
-    BC_DELM,                     /* '.' '/' */
+    BC_WSPC,                     /* 00 - NULL */
+    BC_RGLR,                     /* 01 */
+    BC_RGLR,                     /* 02 */
+    BC_RGLR,                     /* 03 */
+    BC_RGLR,                     /* 04 */
+    BC_RGLR,                     /* 05 */
+    BC_RGLR,                     /* 06 */
+    BC_RGLR,                     /* 07 */
+    BC_RGLR,                     /* 08 */
+    BC_WSPC,                     /* 09 - HT */
+    BC_WSPC | BC_EOLM,           /* 0A - LF */
+    BC_RGLR,                     /* 0B */
+    BC_WSPC,                     /* 0C - FF */
+    BC_WSPC | BC_EOLM,           /* 0D - CR */
+    BC_RGLR,                     /* 0E */
+    BC_RGLR,                     /* 0F */
+    BC_RGLR,                     /* 10 */
+    BC_RGLR,                     /* 11 */
+    BC_RGLR,                     /* 12 */
+    BC_RGLR,                     /* 13 */
+    BC_RGLR,                     /* 14 */
+    BC_RGLR,                     /* 15 */
+    BC_RGLR,                     /* 16 */
+    BC_RGLR,                     /* 17 */
+    BC_RGLR,                     /* 18 */
+    BC_RGLR,                     /* 19 */
+    BC_RGLR,                     /* 1A */
+    BC_RGLR,                     /* 1B */
+    BC_RGLR,                     /* 1C */
+    BC_RGLR,                     /* 1D */
+    BC_RGLR,                     /* 1E */
+    BC_RGLR,                     /* 1F */
+    BC_WSPC,                     /* 20 - SP */
+    BC_RGLR,                     /* 21 */
+    BC_RGLR,                     /* 22 */
+    BC_RGLR,                     /* 23 */
+    BC_RGLR,                     /* 24 - '$' */
+    BC_DELM | BC_CMNT,           /* 25 - '%' */
+    BC_RGLR,                     /* 26 */
+    BC_RGLR,                     /* 27 */
+    BC_DELM,                     /* 28 - '(' */
+    BC_DELM,                     /* 29 - ')' */
+    BC_RGLR,                     /* 2A */
+    BC_RGLR,                     /* 2B */
+    BC_RGLR,                     /* 2C */
+    BC_RGLR,                     /* 2D */
+    BC_RGLR,                     /* 2E - '.' */
+    BC_DELM,                     /* 2F - '/' */
     BC_OCTL | BC_DCML | BC_HEXL, /* 30 - '0' */
     BC_OCTL | BC_DCML | BC_HEXL, /* 31 - '1' */
     BC_OCTL | BC_DCML | BC_HEXL, /* 32 - '2' */
@@ -73,76 +73,76 @@ const uint8_t byte_classification[] = {
     BC_OCTL | BC_DCML | BC_HEXL, /* 35 - '5' */
     BC_OCTL | BC_DCML | BC_HEXL, /* 36 - '6' */
     BC_OCTL | BC_DCML | BC_HEXL, /* 37 - '7' */
-    BC_DCML | BC_HEXL,
-    BC_DCML | BC_HEXL, /* '8' '9' */
-    BC_RGLR,
-    BC_RGLR,                     /* ':' ';' */
-    BC_DELM,
-    BC_RGLR,                     /* '<' '=' */
-    BC_DELM,
-    BC_RGLR,                     /* '>' '?' */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 40 - 43 */
-    BC_RGLR,
-    BC_HEXL,
-    BC_HEXL,
-    BC_HEXL, /* 44 - 47 */
-    BC_HEXL,
-    BC_HEXL,
-    BC_HEXL,
-    BC_RGLR, /* 48 - 4B */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 4C - 4F */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 50 - 53 */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 54 - 57 */
-    BC_RGLR,
-    BC_RGLR,                   /* 58 - 59 */
-    BC_RGLR,
-    BC_DELM,                   /* 'Z' '[' */
-    BC_RGLR,
-    BC_DELM,                   /* '\' ']' */
-    BC_RGLR,
-    BC_RGLR,                   /* 5E - 5F */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_HEXL,
-    BC_HEXL,
-    BC_HEXL, /* 60 - 67 */
-    BC_HEXL,
-    BC_HEXL,
-    BC_HEXL,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 68 - 6F */
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR,
-    BC_RGLR, /* 70 - 77 */
-    BC_RGLR,
-    BC_RGLR,                   /* 78 - 79 */
-    BC_RGLR,
-    BC_DELM,                   /* 'z' '{' */
-    BC_RGLR,
-    BC_DELM,                   /* '|' '}' */
+    BC_DCML | BC_HEXL,           /* 38 - '8' */
+    BC_DCML | BC_HEXL,           /* 39 - '9' */
+    BC_RGLR,                     /* 3A - ':' */
+    BC_RGLR,                     /* 3B - ';' */
+    BC_DELM,                     /* 3C - '<' */
+    BC_RGLR,                     /* 3D - '=' */
+    BC_DELM,                     /* 3E - '>' */
+    BC_RGLR,                     /* 3F - '?' */
+    BC_RGLR,                     /* 40 - */
+    BC_HEXL,                     /* 41 - A */
+    BC_HEXL,                     /* 42 - B */
+    BC_HEXL,                     /* 43 - C */
+    BC_HEXL,                     /* 44 - D */
+    BC_HEXL,                     /* 45 - E */
+    BC_HEXL,                     /* 46 - F */
+    BC_RGLR,                     /* 47 - G */
+    BC_RGLR,                     /* 48 - H */
+    BC_RGLR,                     /* 49 - I */
+    BC_RGLR,                     /* 4A - J */
+    BC_RGLR,                     /* 4B - K */
+    BC_RGLR,                     /* 4C - L */
+    BC_RGLR,                     /* 4D - M */
+    BC_RGLR,                     /* 4E - N */
+    BC_RGLR,                     /* 4F - O */
+    BC_RGLR,                     /* 50 - P */
+    BC_RGLR,                     /* 51 - Q */
+    BC_RGLR,                     /* 52 - R */
+    BC_RGLR,                     /* 53 - S */
+    BC_RGLR,                     /* 54 - T */
+    BC_RGLR,                     /* 55 - U */
+    BC_RGLR,                     /* 56 - V */
+    BC_RGLR,                     /* 57 - W */
+    BC_RGLR,                     /* 58 - X */
+    BC_RGLR,                     /* 59 - Y */
+    BC_RGLR,                     /* 5A - 'Z' */
+    BC_DELM,                     /* 5B - '[' */
+    BC_RGLR,                     /* 5C - '\' */
+    BC_DELM,                     /* 5D - ']' */
+    BC_RGLR,                     /* 5E */
+    BC_RGLR,                     /* 5F */
+    BC_RGLR,                     /* 60 */
+    BC_HEXL,                     /* 61 - a */
+    BC_HEXL,                     /* 62 - b */
+    BC_HEXL,                     /* 63 - c */
+    BC_HEXL,                     /* 64 - d */
+    BC_HEXL,                     /* 65 - e */
+    BC_HEXL,                     /* 66 - f */
+    BC_RGLR,                     /* 67 - g */
+    BC_RGLR,                     /* 68 - h */
+    BC_RGLR,                     /* 69 - i */
+    BC_RGLR,                     /* 6A - j */
+    BC_RGLR,                     /* 6B - k */
+    BC_RGLR,                     /* 6C - l */
+    BC_RGLR,                     /* 6D - m */
+    BC_RGLR,                     /* 6E - n */
+    BC_RGLR,                     /* 6F - o */
+    BC_RGLR,                     /* 70 - p */
+    BC_RGLR,                     /* 71 - q */
+    BC_RGLR,                     /* 72 - r */
+    BC_RGLR,                     /* 73 - s */
+    BC_RGLR,                     /* 74 - t */
+    BC_RGLR,                     /* 75 - u */
+    BC_RGLR,                     /* 76 - v */
+    BC_RGLR,                     /* 77 - w */
+    BC_RGLR,                     /* 78 - x */
+    BC_RGLR,                     /* 79 - y */
+    BC_RGLR,                     /* 7A - 'z' */
+    BC_DELM,                     /* 7B - '{' */
+    BC_RGLR,                     /* 7C - '|' */
+    BC_DELM,                     /* 7D - '}' */
     BC_RGLR,
     BC_RGLR,                   /* 7E - 7F */
     BC_RGLR,

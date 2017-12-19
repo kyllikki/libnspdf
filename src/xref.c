@@ -206,7 +206,23 @@ static int doc_skip_ws(struct pdf_doc *doc, uint64_t *offset)
     return 0;
 }
 
-static int doc_read_uint(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *result_out)
+/**
+ * move offset to next non eol byte
+ */
+static int doc_skip_eol(struct pdf_doc *doc, uint64_t *offset)
+{
+    uint8_t c;
+    /* TODO sort out keeping offset in range */
+    c = DOC_BYTE(doc, *offset);
+    while ((bclass[c] & BC_EOLM) != 0) {
+        (*offset)++;
+        c = DOC_BYTE(doc, *offset);
+    }
+    return 0;
+}
+
+static nspdferror
+doc_read_uint(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *result_out)
 {
     uint8_t c; /* current byte from source data */
     unsigned int len; /* number of decimal places in number */
@@ -231,7 +247,7 @@ static int doc_read_uint(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *re
             *offset_out = offset;
             *result_out = result;
 
-            return 0;
+            return NSPDFERROR_OK;
         }
         num[len] = c - '0';
         offset++;
@@ -242,7 +258,7 @@ static int doc_read_uint(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *re
 /**
  * finds the startxref marker at the end of input
  */
-int find_startxref(struct pdf_doc *doc, uint64_t *start_xref_out)
+nspdferror find_startxref(struct pdf_doc *doc, uint64_t *offset_out)
 {
     uint64_t offset; /* offset of characters being considered for startxref */
     uint64_t earliest; /* earliest offset to serch for startxref */
@@ -265,14 +281,89 @@ int find_startxref(struct pdf_doc *doc, uint64_t *start_xref_out)
             (DOC_BYTE(doc, offset + 6) == 'r') &&
             (DOC_BYTE(doc, offset + 7) == 'e') &&
             (DOC_BYTE(doc, offset + 8) == 'f')) {
-            offset += 9;
-            doc_skip_ws(doc, &offset);
-            return doc_read_uint(doc, &offset, start_xref_out);
+            *offset_out = offset;
+            return NSPDFERROR_OK;
         }
     }
-    return -1;
+    return NSPDFERROR_SYNTAX;
 }
 
+/**
+ * decodes a startxref field
+ */
+nspdferror decode_startxref(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *start_xref_out)
+{
+    uint64_t offset; /* offset of characters being considered for startxref */
+    uint64_t start_xref;
+    nspdferror res;
+
+    offset = *offset_out;
+
+    if ((DOC_BYTE(doc, offset    ) != 's') ||
+        (DOC_BYTE(doc, offset + 1) != 't') ||
+        (DOC_BYTE(doc, offset + 2) != 'a') ||
+        (DOC_BYTE(doc, offset + 3) != 'r') ||
+        (DOC_BYTE(doc, offset + 4) != 't') ||
+        (DOC_BYTE(doc, offset + 5) != 'x') ||
+        (DOC_BYTE(doc, offset + 6) != 'r') ||
+        (DOC_BYTE(doc, offset + 7) != 'e') ||
+        (DOC_BYTE(doc, offset + 8) != 'f')) {
+        return NSPDFERROR_SYNTAX;
+    }
+    offset += 9;
+
+    res = doc_skip_ws(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    res = doc_read_uint(doc, &offset, &start_xref);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    res = doc_skip_eol(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    if ((DOC_BYTE(doc, offset    ) != '%') ||
+        (DOC_BYTE(doc, offset + 1) != '%') ||
+        (DOC_BYTE(doc, offset + 2) != 'E') ||
+        (DOC_BYTE(doc, offset + 3) != 'O') ||
+        (DOC_BYTE(doc, offset + 4) != 'F')) {
+        printf("missing EOF marker\n");
+        return NSPDFERROR_SYNTAX;
+    }
+
+    *offset_out = offset;
+    *start_xref_out = start_xref;
+
+    return NSPDFERROR_OK;
+}
+
+
+/**
+ * finds the next trailer
+ */
+nspdferror find_trailer(struct pdf_doc *doc, uint64_t *offset_out)
+{
+    uint64_t offset; /* offset of characters being considered for trailer */
+
+    for (offset = *offset_out;offset < doc->length; offset++) {
+        if ((DOC_BYTE(doc, offset    ) == 't') &&
+            (DOC_BYTE(doc, offset + 1) == 'r') &&
+            (DOC_BYTE(doc, offset + 2) == 'a') &&
+            (DOC_BYTE(doc, offset + 3) == 'i') &&
+            (DOC_BYTE(doc, offset + 4) == 'l') &&
+            (DOC_BYTE(doc, offset + 5) == 'e') &&
+            (DOC_BYTE(doc, offset + 6) == 'r')) {
+            *offset_out = offset;
+            return NSPDFERROR_OK;
+        }
+    }
+    return NSPDFERROR_SYNTAX;
+}
 
 /**
  * find the PDF comment marker to identify the start of the document
@@ -333,6 +424,7 @@ nspdferror cos_free_object(struct cos_object *cos_obj)
         break;
 
     case COS_TYPE_STRING:
+        free(cos_obj->u.s->data);
         free(cos_obj->u.s);
         break;
 
@@ -569,15 +661,29 @@ cos_decode_string(struct pdf_doc *doc,
     return NSPDFERROR_OK;
 }
 
+uint8_t xtoi(uint8_t x)
+{
+    if (x >= '0' && x <= '9') {
+        x = x - '0';
+    } else if (x >= 'a' && x <='f') {
+        x = x - 'a' + 10;
+    } else if (x >= 'A' && x <='F') {
+        x = x - 'A' + 10;
+    }
+    return x;
+}
+
 nspdferror
 cos_decode_hex_string(struct pdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
     uint64_t offset;
-    //    struct cos_object *cosobj;
+    struct cos_object *cosobj;
     uint8_t c;
-    //    uint8_t byte;
+    uint8_t value = 0;
+    struct cos_string *cstring;
+    bool first = true;
 
     offset = *offset_out;
 
@@ -585,14 +691,46 @@ cos_decode_hex_string(struct pdf_doc *doc,
     if (c != '<') {
         return NSPDFERROR_SYNTAX;
     }
-    doc_skip_ws(doc, &offset);
 
-    while (c != '>') {
-        c = DOC_BYTE(doc, offset++);
-        doc_skip_ws(doc, &offset);
+    cstring = calloc(1, sizeof(*cstring));
+    if (cstring == NULL) {
+        return NSPDFERROR_NOMEM;
     }
 
-    return -1;
+    cosobj = calloc(1, sizeof(*cosobj));
+    if (cosobj == NULL) {
+        return NSPDFERROR_NOMEM;
+    }
+    cosobj->type = COS_TYPE_STRING;
+    cosobj->u.s = cstring;
+
+    for (; offset < doc->length; offset++) {
+        c = DOC_BYTE(doc, offset);
+        if (c == '>') {
+            if (first == false) {
+                cos_string_append(cstring, value);
+            }
+            offset++;
+            doc_skip_ws(doc, &offset);
+
+            *cosobj_out = cosobj;
+            *offset_out = offset;
+
+            return NSPDFERROR_OK;
+        } else if ((bclass[c] & BC_HEXL) != 0) {
+            if (first) {
+                value = xtoi(c) << 4;
+                first = false;
+            } else {
+                value |= xtoi(c);
+                first = true;
+                cos_string_append(cstring, value);
+            }
+        } else if ((bclass[c] & BC_WSPC) == 0) {
+            break; /* unknown byte value in string */
+        }
+    }
+    return NSPDFERROR_SYNTAX;
 }
 
 
@@ -639,8 +777,6 @@ int cos_decode_dictionary(struct pdf_doc *doc,
             return -1; /* syntax error */
         }
         printf("key: %s\n", key->u.n);
-
-        printf("%c\n", DOC_BYTE(doc, offset));
 
         res = cos_decode_object(doc, &offset, &value);
         if (res != 0) {
@@ -729,6 +865,7 @@ cos_decode_list(struct pdf_doc *doc,
         cosobj->u.array = entry;
     }
     offset++; /* skip closing ] */
+
     doc_skip_ws(doc, &offset);
 
     *cosobj_out = cosobj;
@@ -762,12 +899,13 @@ int cos_decode_name(struct pdf_doc *doc,
     }
     printf("found a name\n");
 
-    c = DOC_BYTE(doc, offset++);
+    c = DOC_BYTE(doc, offset);
     while ((idx <= NAME_MAX_LENGTH) &&
            ((bclass[c] & (BC_WSPC | BC_DELM)) == 0)) {
+        offset++;
         //printf("%c", c);
         name[idx++] = c;
-        c = DOC_BYTE(doc, offset++);
+        c = DOC_BYTE(doc, offset);
     }
     //printf("\nidx: %d\n", idx);
     if (idx > NAME_MAX_LENGTH) {
@@ -1114,10 +1252,16 @@ int cos_decode_object(struct pdf_doc *doc,
 
 
 
-int decode_trailer(struct pdf_doc *doc, uint64_t offset)
+nspdferror
+decode_trailer(struct pdf_doc *doc,
+               uint64_t *offset_out,
+               struct cos_object **trailer_out)
 {
     struct cos_object *trailer;
     int res;
+    uint64_t offset;
+
+    offset = *offset_out;
 
     /* trailer object header */
     if ((DOC_BYTE(doc, offset    ) != 't') &&
@@ -1142,7 +1286,10 @@ int decode_trailer(struct pdf_doc *doc, uint64_t offset)
         return -1;
     }
 
-    return 0;
+    *trailer_out = trailer;
+    *offset_out = offset;
+
+    return NSPDFERROR_OK;
 }
 
 int decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
@@ -1213,11 +1360,107 @@ int decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
     return 0;
 }
 
+/**
+ * recursively parse trailers and xref tables
+ */
+nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
+{
+    nspdferror res;
+    uint64_t offset; /* the current data offset */
+    uint64_t startxref; /* the value of the startxref field */
+    struct cos_object *trailer; /* the current trailer */
+
+    offset = xref_offset;
+
+    res = find_trailer(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to decode startxref\n");
+        return res;
+    }
+
+    res = decode_trailer(doc, &offset, &trailer);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to decode trailer\n");
+        return res;
+    }
+
+    res = decode_startxref(doc, &offset, &startxref);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to decode startxref\n");
+        return res;
+    }
+
+    if (startxref != xref_offset) {
+        printf("startxref and Prev value disagree\n");
+    }
+
+    /* extract Size from trailer and create xref table large enough */
+
+    /* check for prev ID key in trailer and recurse call if present */
+
+    /*
+
+
+    res = decode_xref(&doc, &startxref);
+    if (res != 0) {
+        printf("failed to decode xref table\n");
+        return res;
+    }
+
+    */
+
+    return res;
+}
+
+/**
+ * decode non-linear pdf trailer data
+ *
+ * PDF have a structure nominally defined as header, body, cross reference table
+ * and trailer. The body, cross reference table and trailer sections may be
+ * repeated in a scheme known as "incremental updates"
+ *
+ * The strategy used here is to locate the end of the last trailer block which
+ * contains a startxref token followed by a byte offset into the file of the
+ * beginning of the cross reference table followed by a literal '%%EOF'
+ *
+ * the initial offset is used to walk back down a chain of xref/trailers until
+ * the trailer does not contain a Prev entry and decode xref tables forwards to
+ * overwrite earlier object entries with later ones.
+ *
+ * It is necessary to search forwards from the xref table to find the trailer
+ * block because instead of the Prev entry pointing to the previous trailer
+ * (from which we could have extracted the startxref to find the associated
+ * xref table) it points to the previous xref block which we have to skip to
+ * find the subsequent trailer.
+ *
+ */
+nspdferror decode_trailers(struct pdf_doc *doc)
+{
+    nspdferror res;
+    uint64_t offset; /* the current data offset */
+    uint64_t startxref; /* the value of the first startxref field */
+
+    res = find_startxref(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to find startxref\n");
+        return res;
+    }
+
+    res = decode_startxref(doc, &offset, &startxref);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to decode startxref\n");
+        return res;
+    }
+
+    /* recurse down the xref and trailers */
+    return decode_xref_trailer(doc, startxref);
+}
+
+
 int main(int argc, char **argv)
 {
     struct pdf_doc doc;
     int res;
-    uint64_t startxref;
 
     res = read_whole_pdf(&doc, argv[1]);
     if (res != 0) {
@@ -1231,21 +1474,9 @@ int main(int argc, char **argv)
         return res;
     }
 
-    res = find_startxref(&doc, &startxref);
-    if (res != 0) {
-        printf("failed to find startxref\n");
-        return res;
-    }
-
-    res = decode_xref(&doc, &startxref);
-    if (res != 0) {
-        printf("failed to decode xref table\n");
-        return res;
-    }
-
-    res = decode_trailer(&doc, startxref);
-    if (res != 0) {
-        printf("failed to decode trailer\n");
+    res = decode_trailers(&doc);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to decode trailers (%d)\n", res);
         return res;
     }
 
