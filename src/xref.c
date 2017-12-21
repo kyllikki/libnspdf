@@ -125,12 +125,11 @@ struct pdf_doc {
     uint64_t xref_size;
     struct cos_indirect_object *xref_table;
 
-    /**
-     * trailer object
-     *
-     * @todo probably unecessary and should extract just what is required
-     */
-    struct cos_object *trailer;
+    struct cos_object *root;
+    struct cos_object *encrypt;
+    struct cos_object *info;
+    struct cos_object *id;
+
 };
 
 
@@ -1358,7 +1357,10 @@ decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
     return NSPDFERROR_OK;
 }
 
-nspdferror cos_dictionary_get_value(struct cos_object *dict, const char *key, struct cos_object **value_out)
+nspdferror
+cos_dictionary_get_value(struct cos_object *dict,
+                         const char *key,
+                         struct cos_object **value_out)
 {
     struct cos_dictionary_entry *entry;
 
@@ -1373,6 +1375,39 @@ nspdferror cos_dictionary_get_value(struct cos_object *dict, const char *key, st
             return NSPDFERROR_OK;
         }
         entry = entry->next;
+    }
+    return NSPDFERROR_NOTFOUND;
+}
+
+/**
+ * extracts a value for a key in a dictionary.
+ *
+ * this finds and returns a value for a given key removing it from a dictionary
+ */
+nspdferror
+cos_dictionary_extract_value(struct cos_object *dict,
+                             const char *key,
+                             struct cos_object **value_out)
+{
+    struct cos_dictionary_entry *entry;
+    struct cos_dictionary_entry **prev;
+
+    if (dict->type != COS_TYPE_DICTIONARY) {
+        return NSPDFERROR_TYPE;
+    }
+
+    prev = &dict->u.dictionary;
+    entry = *prev;
+    while (entry != NULL) {
+        if (strcmp(entry->key->u.n, key) == 0) {
+            *value_out = entry->value;
+            *prev = entry->next;
+            cos_free_object(entry->key);
+            free(entry);
+            return NSPDFERROR_OK;
+        }
+        prev = &entry->next;
+        entry = *prev;
     }
     return NSPDFERROR_NOTFOUND;
 }
@@ -1402,7 +1437,7 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
 
     res = find_trailer(doc, &offset);
     if (res != NSPDFERROR_OK) {
-        printf("failed to decode startxref\n");
+        printf("failed to find last trailer\n");
         return res;
     }
 
@@ -1415,14 +1450,14 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
     res = decode_startxref(doc, &offset, &startxref);
     if (res != NSPDFERROR_OK) {
         printf("failed to decode startxref\n");
-        return res;
+        goto decode_xref_trailer_failed;
     }
 
     if (startxref != xref_offset) {
         printf("startxref and Prev value disagree\n");
     }
 
-    if (doc->trailer == NULL) {
+    if (doc->xref_table == NULL) {
         /* extract Size from trailer and create xref table large enough */
         struct cos_object *cobj_size;
         int64_t size;
@@ -1430,19 +1465,43 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
         res = cos_dictionary_get_value(trailer, "Size", &cobj_size);
         if (res != NSPDFERROR_OK) {
             printf("trailer has no Size value\n");
-            return res;
+            goto decode_xref_trailer_failed;
         }
+
         res = cos_get_int(cobj_size, &size);
         if (res != NSPDFERROR_OK) {
             printf("trailer Size not int\n");
-            return res;
+            goto decode_xref_trailer_failed;
         }
+
+        res = cos_dictionary_extract_value(trailer, "Root", &doc->root);
+        if (res != NSPDFERROR_OK) {
+            printf("no Root!\n");
+            goto decode_xref_trailer_failed;
+        }
+
         doc->xref_table = calloc(size, sizeof(struct cos_indirect_object));
         if (doc->xref_table == NULL) {
-            return NSPDFERROR_NOMEM;
+            res = NSPDFERROR_NOMEM;
+            goto decode_xref_trailer_failed;
         }
         doc->xref_size = size;
-        doc->trailer = trailer;
+
+        res = cos_dictionary_extract_value(trailer, "Encrypt", &doc->encrypt);
+        if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
+            goto decode_xref_trailer_failed;
+        }
+
+        res = cos_dictionary_extract_value(trailer, "Info", &doc->info);
+        if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
+            goto decode_xref_trailer_failed;
+        }
+
+        res = cos_dictionary_extract_value(trailer, "ID", &doc->id);
+        if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
+            goto decode_xref_trailer_failed;
+        }
+
     }
 
     /* check for prev ID key in trailer and recurse call if present */
@@ -1451,24 +1510,26 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
         res = cos_get_int(cobj_prev, &prev);
         if (res != NSPDFERROR_OK) {
             printf("trailer Prev not int\n");
-            return res;
+            goto decode_xref_trailer_failed;
         }
 
         res = decode_xref_trailer(doc, prev);
         if (res != NSPDFERROR_OK) {
-            return res;
+            goto decode_xref_trailer_failed;
         }
     }
 
     offset = xref_offset;
+    /** @todo deal with XrefStm (number) in trailer */
 
     res = decode_xref(doc, &offset);
     if (res != NSPDFERROR_OK) {
         printf("failed to decode xref table\n");
-        return res;
+        goto decode_xref_trailer_failed;
     }
 
-    /** @todo free trailer? */
+decode_xref_trailer_failed:
+    cos_free_object(trailer);
 
     return res;
 }
@@ -1517,6 +1578,10 @@ nspdferror decode_trailers(struct pdf_doc *doc)
     return decode_xref_trailer(doc, startxref);
 }
 
+nspdferror decode_catalog(struct pdf_doc *doc)
+{
+    return NSPDFERROR_OK;
+}
 
 nspdferror new_pdf_doc(struct pdf_doc **doc_out)
 {
@@ -1555,6 +1620,12 @@ int main(int argc, char **argv)
     res = decode_trailers(doc);
     if (res != NSPDFERROR_OK) {
         printf("failed to decode trailers (%d)\n", res);
+        return res;
+    }
+
+    res = decode_catalog(doc);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to decode catalog (%d)\n", res);
         return res;
     }
 
