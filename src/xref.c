@@ -5,17 +5,11 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "nspdferror.h"
 #include "byte_class.h"
 
 #define SLEN(x) (sizeof((x)) - 1)
 
-typedef enum {
-    NSPDFERROR_OK,
-    NSPDFERROR_NOMEM,
-    NSPDFERROR_SYNTAX, /* syntax error in parse */
-    NSPDFERROR_SIZE, /* not enough input data */
-    NSPDFERROR_RANGE, /* value outside type range */
-} nspdferror;
 
 enum cos_type {
     COS_TYPE_NULL,
@@ -101,20 +95,18 @@ struct cos_object {
 };
 
 
-/** linked list of indirect objects */
+/** indirect object */
 struct cos_indirect_object {
-    /** next in list */
-    struct cos_indirect_object *next;
-
     /* reference identifier */
     struct cos_reference ref;
 
     /** offset of object */
     uint64_t offset;
 
-    /* direct object */
+    /* direct object if already decoded */
     struct cos_object *o;
 };
+
 
 /** pdf document */
 struct pdf_doc {
@@ -127,11 +119,18 @@ struct pdf_doc {
     int major;
     int minor;
 
-    /** start of current xref table  */
-    uint64_t startxref;
+    /**
+     * Indirect object cross reference table
+     */
+    uint64_t xref_size;
+    struct cos_indirect_object *xref_table;
 
-    /** indirect objects from document body */
-    struct cos_indirect_object *cos_list;
+    /**
+     * trailer object
+     *
+     * @todo probably unecessary and should extract just what is required
+     */
+    struct cos_object *trailer;
 };
 
 
@@ -389,29 +388,6 @@ int check_header(struct pdf_doc *doc)
     return -1;
 }
 
-/* add indirect object */
-int cos_indirect_object_add(struct pdf_doc *doc,
-                    uint64_t obj_number,
-                    uint64_t obj_offset,
-                    uint64_t obj_generation)
-{
-    struct cos_indirect_object *nobj;
-    nobj = calloc(1, sizeof(struct cos_indirect_object));
-
-    if (nobj == NULL) {
-        return -1;
-    }
-    nobj->next = doc->cos_list;
-    nobj->ref.id = obj_number;
-    nobj->ref.generation = obj_generation;
-    nobj->offset = obj_offset;
-
-    doc->cos_list = nobj;
-
-    printf("xref %"PRIu64" %"PRIu64" %"PRIu64"\n",
-           obj_number, obj_offset, obj_generation);
-    return 0;
-}
 
 nspdferror cos_free_object(struct cos_object *cos_obj)
 {
@@ -1292,12 +1268,13 @@ decode_trailer(struct pdf_doc *doc,
     return NSPDFERROR_OK;
 }
 
-int decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
+nspdferror
+decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
 {
-    int res;
-    uint64_t objnum; /* current object number */
-    uint64_t lastobjnum;
     uint64_t offset;
+    nspdferror res;
+    uint64_t objnumber; /* current object number */
+    uint64_t objcount;
 
     offset = *offset_out;
 
@@ -1306,58 +1283,107 @@ int decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
         (DOC_BYTE(doc, offset + 1) != 'r') &&
         (DOC_BYTE(doc, offset + 2) != 'e') &&
         (DOC_BYTE(doc, offset + 3) != 'f')) {
-        return -1;
+        return NSPDFERROR_SYNTAX;
     }
     offset += 4;
-    doc_skip_ws(doc, &offset);
 
-    /* first object number in table */
-    res = doc_read_uint(doc, &offset, &objnum);
-    while (res == 0) {
-        doc_skip_ws(doc, &offset);
+    res = doc_skip_ws(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
 
-        /* last object number in table */
-        res = doc_read_uint(doc, &offset, &lastobjnum);
-        if (res != 0) {
+    /* subsections
+     * <first object number> <number of references in subsection>
+     */
+    res = doc_read_uint(doc, &offset, &objnumber);
+    while (res == NSPDFERROR_OK) {
+        uint64_t lastobj;
+        res = doc_skip_ws(doc, &offset);
+        if (res != NSPDFERROR_OK) {
             return res;
         }
-        doc_skip_ws(doc, &offset);
 
-        lastobjnum += objnum;
-
-        /* object index entries */
-        while (objnum < lastobjnum) {
-            uint64_t obj_start;
-            uint64_t obj_generation;
-
-            /* object offset */
-            res = doc_read_uint(doc, &offset, &obj_start);
-            if (res != 0) {
-                return res;
-            }
-            doc_skip_ws(doc, &offset);
-
-            res = doc_read_uint(doc, &offset, &obj_generation);
-            if (res != 0) {
-                return res;
-            }
-            doc_skip_ws(doc, &offset);
-
-            if ((DOC_BYTE(doc, offset) == 'n')) {
-                cos_indirect_object_add(doc, objnum, obj_start, obj_generation);
-            }
-            offset++;
-            doc_skip_ws(doc, &offset);
-
-            objnum++;
+        res = doc_read_uint(doc, &offset, &objcount);
+        if (res != NSPDFERROR_OK) {
+            return res;
         }
-        //        printf("at objnum %"PRIu64"\n", objnum);
 
-        /* first object number in table */
-        res = doc_read_uint(doc, &offset, &objnum);
+        res = doc_skip_ws(doc, &offset);
+        if (res != NSPDFERROR_OK) {
+            return res;
+        }
+
+        //printf("decoding subsection %lld %lld\n", objnumber, objcount);
+
+        lastobj = objnumber + objcount;
+        for (; objnumber < lastobj ; objnumber++) {
+            /* each entry is a fixed format */
+            uint64_t objindex;
+            uint64_t objgeneration;
+
+            /* object index */
+            res = doc_read_uint(doc, &offset, &objindex);
+            if (res != NSPDFERROR_OK) {
+                return res;
+            }
+            offset++; /* skip space */
+
+            res = doc_read_uint(doc, &offset, &objgeneration);
+            if (res != NSPDFERROR_OK) {
+                return res;
+            }
+            offset++; /* skip space */
+
+            if ((DOC_BYTE(doc, offset++) == 'n')) {
+                if (objnumber < doc->xref_size) {
+                    struct cos_indirect_object *indobj;
+                    indobj = doc->xref_table + objnumber;
+
+                    indobj->ref.id = objnumber;
+                    indobj->ref.generation = objgeneration;
+                    indobj->offset = objindex;
+
+                    //printf("xref %lld %lld -> %lld\n", objnumber, objgeneration, objindex);
+                } else {
+                    printf("index out of bounds\n");
+                }
+            }
+
+            offset += 2; /* skip EOL */
+        }
+
+        res = doc_read_uint(doc, &offset, &objnumber);
     }
-    *offset_out = offset;
-    return 0;
+
+    return NSPDFERROR_OK;
+}
+
+nspdferror cos_dictionary_get_value(struct cos_object *dict, const char *key, struct cos_object **value_out)
+{
+    struct cos_dictionary_entry *entry;
+
+    if (dict->type != COS_TYPE_DICTIONARY) {
+        return NSPDFERROR_TYPE;
+    }
+
+    entry = dict->u.dictionary;
+    while (entry != NULL) {
+        if (strcmp(entry->key->u.n, key) == 0) {
+            *value_out = entry->value;
+            return NSPDFERROR_OK;
+        }
+        entry = entry->next;
+    }
+    return NSPDFERROR_NOTFOUND;
+}
+
+nspdferror cos_get_int(struct cos_object *cobj, int64_t *value_out)
+{
+    if (cobj->type != COS_TYPE_INT) {
+        return NSPDFERROR_TYPE;
+    }
+    *value_out = cobj->u.i;
+    return NSPDFERROR_OK;
 }
 
 /**
@@ -1369,6 +1395,8 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
     uint64_t offset; /* the current data offset */
     uint64_t startxref; /* the value of the startxref field */
     struct cos_object *trailer; /* the current trailer */
+    struct cos_object *cobj_prev;
+    int64_t prev;
 
     offset = xref_offset;
 
@@ -1394,20 +1422,53 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
         printf("startxref and Prev value disagree\n");
     }
 
-    /* extract Size from trailer and create xref table large enough */
+    if (doc->trailer == NULL) {
+        /* extract Size from trailer and create xref table large enough */
+        struct cos_object *cobj_size;
+        int64_t size;
+
+        res = cos_dictionary_get_value(trailer, "Size", &cobj_size);
+        if (res != NSPDFERROR_OK) {
+            printf("trailer has no Size value\n");
+            return res;
+        }
+        res = cos_get_int(cobj_size, &size);
+        if (res != NSPDFERROR_OK) {
+            printf("trailer Size not int\n");
+            return res;
+        }
+        doc->xref_table = calloc(size, sizeof(struct cos_indirect_object));
+        if (doc->xref_table == NULL) {
+            return NSPDFERROR_NOMEM;
+        }
+        doc->xref_size = size;
+        doc->trailer = trailer;
+    }
 
     /* check for prev ID key in trailer and recurse call if present */
+    res = cos_dictionary_get_value(trailer, "Prev", &cobj_prev);
+    if (res == NSPDFERROR_OK) {
+        res = cos_get_int(cobj_prev, &prev);
+        if (res != NSPDFERROR_OK) {
+            printf("trailer Prev not int\n");
+            return res;
+        }
 
-    /*
+        res = decode_xref_trailer(doc, prev);
+        if (res != NSPDFERROR_OK) {
+            return res;
+        }
+    }
 
+    offset = xref_offset;
 
-    res = decode_xref(&doc, &startxref);
-    if (res != 0) {
+    res = decode_xref(doc, &offset);
+    if (res != NSPDFERROR_OK) {
         printf("failed to decode xref table\n");
         return res;
     }
 
-    */
+    /** @todo free trailer? */
 
     return res;
 }
@@ -1457,24 +1518,41 @@ nspdferror decode_trailers(struct pdf_doc *doc)
 }
 
 
+nspdferror new_pdf_doc(struct pdf_doc **doc_out)
+{
+    struct pdf_doc *doc;
+    doc = calloc(1, sizeof(struct pdf_doc));
+    if (doc == NULL) {
+        return NSPDFERROR_NOMEM;
+    }
+    *doc_out = doc;
+    return NSPDFERROR_OK;
+}
+
 int main(int argc, char **argv)
 {
-    struct pdf_doc doc;
+    struct pdf_doc *doc;
     int res;
 
-    res = read_whole_pdf(&doc, argv[1]);
+    res = new_pdf_doc(&doc);
+    if (res != NSPDFERROR_OK) {
+        printf("failed to read file\n");
+        return res;
+    }
+
+    res = read_whole_pdf(doc, argv[1]);
     if (res != 0) {
         printf("failed to read file\n");
         return res;
     }
 
-    res = check_header(&doc);
+    res = check_header(doc);
     if (res != 0) {
         printf("header check failed\n");
         return res;
     }
 
-    res = decode_trailers(&doc);
+    res = decode_trailers(doc);
     if (res != NSPDFERROR_OK) {
         printf("failed to decode trailers (%d)\n", res);
         return res;
