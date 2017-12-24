@@ -7,6 +7,7 @@
 
 #include "nspdferror.h"
 #include "cos_object.h"
+#include "pdf_doc.h"
 
 
 nspdferror cos_free_object(struct cos_object *cos_obj)
@@ -115,25 +116,38 @@ cos_dictionary_extract_value(struct cos_object *dict,
     return NSPDFERROR_NOTFOUND;
 }
 
-nspdferror cos_get_int(struct cos_object *cobj, int64_t *value_out)
+nspdferror
+cos_get_int(struct pdf_doc *doc,
+            struct cos_object *cobj,
+            int64_t *value_out)
 {
-    if (cobj->type != COS_TYPE_INT) {
-        return NSPDFERROR_TYPE;
+    nspdferror res;
+
+    res = xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type != COS_TYPE_INT) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            *value_out = cobj->u.i;
+        }
     }
-    *value_out = cobj->u.i;
-    return NSPDFERROR_OK;
+    return res;
 }
 
 nspdferror
-cos_get_dictionary(struct cos_object *cobj,
+cos_get_dictionary(struct pdf_doc *doc,
+                   struct cos_object *cobj,
                    struct cos_object **value_out)
 {
-    if (cobj->type == COS_TYPE_REFERENCE) {
-        
+    nspdferror res;
+
+    res = xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type != COS_TYPE_DICTIONARY) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            *value_out = cobj;
+        }
     }
-    if (cobj->type != COS_TYPE_DICTIONARY) {
-        return NSPDFERROR_TYPE;
-    }
-    *value_out = cobj;
-    return NSPDFERROR_OK;
+    return res;
 }

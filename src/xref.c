@@ -225,10 +225,6 @@ int check_header(struct pdf_doc *doc)
 }
 
 
-
-
-
-
 nspdferror
 decode_trailer(struct pdf_doc *doc,
                uint64_t *offset_out,
@@ -407,7 +403,7 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_get_int(cobj_size, &size);
+        res = cos_get_int(doc, cobj_size, &size);
         if (res != NSPDFERROR_OK) {
             printf("trailer Size not int\n");
             goto decode_xref_trailer_failed;
@@ -446,7 +442,7 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
     /* check for prev ID key in trailer and recurse call if present */
     res = cos_dictionary_get_value(trailer, "Prev", &cobj_prev);
     if (res == NSPDFERROR_OK) {
-        res = cos_get_int(cobj_prev, &prev);
+        res = cos_get_int(doc, cobj_prev, &prev);
         if (res != NSPDFERROR_OK) {
             printf("trailer Prev not int\n");
             goto decode_xref_trailer_failed;
@@ -522,7 +518,7 @@ nspdferror decode_catalog(struct pdf_doc *doc)
     nspdferror res;
     struct cos_object *catalog;
 
-    res = cos_get_dictionary(doc->root, &catalog);
+    res = cos_get_dictionary(doc, doc->root, &catalog);
     
     return res;
 }

@@ -83,7 +83,12 @@ struct cos_object {
     } u;
 };
 
-int cos_decode_object(struct pdf_doc *doc, uint64_t *offset_out, struct cos_object **cosobj_out);
+/**
+ * Decode input stream into an object
+ *
+ * lex and parse a byte stream to generate a COS object.
+ */
+nspdferror cos_decode_object(struct pdf_doc *doc, uint64_t *offset_out, struct cos_object **cosobj_out);
 
 nspdferror cos_free_object(struct cos_object *cos_obj);
 
@@ -91,8 +96,9 @@ nspdferror cos_dictionary_get_value(struct cos_object *dict, const char *key, st
 
 nspdferror cos_dictionary_extract_value(struct cos_object *dict, const char *key, struct cos_object **value_out);
 
-nspdferror cos_get_int(struct cos_object *cobj, int64_t *value_out);
 
-nspdferror cos_get_dictionary(struct cos_object *cobj, struct cos_object **value_out);
+nspdferror cos_get_int(struct pdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
+
+nspdferror cos_get_dictionary(struct pdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
 
 

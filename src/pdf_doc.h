@@ -7,7 +7,7 @@ struct xref_table_entry {
     uint64_t offset;
 
     /* indirect object if already decoded */
-    struct cos_object *o;
+    struct cos_object *object;
 };
 
 
@@ -38,5 +38,7 @@ struct pdf_doc {
 /* byte data acessory, allows for more complex buffer handling in future */
 #define DOC_BYTE(doc, offset) (doc->start[(offset)])
 
-int doc_skip_ws(struct pdf_doc *doc, uint64_t *offset);
-int doc_skip_eol(struct pdf_doc *doc, uint64_t *offset);
+nspdferror doc_skip_ws(struct pdf_doc *doc, uint64_t *offset);
+nspdferror doc_skip_eol(struct pdf_doc *doc, uint64_t *offset);
+
+nspdferror xref_get_referenced(struct pdf_doc *doc, struct cos_object **cobj_out);

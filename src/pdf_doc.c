@@ -1,4 +1,3 @@
-
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -11,7 +10,7 @@
 /**
  * move offset to next non whitespace byte
  */
-int doc_skip_ws(struct pdf_doc *doc, uint64_t *offset)
+nspdferror doc_skip_ws(struct pdf_doc *doc, uint64_t *offset)
 {
     uint8_t c;
     /* TODO sort out keeping offset in range */
@@ -28,13 +27,13 @@ int doc_skip_ws(struct pdf_doc *doc, uint64_t *offset)
         }
         c = DOC_BYTE(doc, *offset);
     }
-    return 0;
+    return NSPDFERROR_OK;
 }
 
 /**
  * move offset to next non eol byte
  */
-int doc_skip_eol(struct pdf_doc *doc, uint64_t *offset)
+nspdferror doc_skip_eol(struct pdf_doc *doc, uint64_t *offset)
 {
     uint8_t c;
     /* TODO sort out keeping offset in range */
@@ -43,5 +42,53 @@ int doc_skip_eol(struct pdf_doc *doc, uint64_t *offset)
         (*offset)++;
         c = DOC_BYTE(doc, *offset);
     }
-    return 0;
+    return NSPDFERROR_OK;
+}
+
+static struct cos_object cos_null_obj = {
+    .type = COS_TYPE_NULL,
+};
+
+nspdferror
+xref_get_referenced(struct pdf_doc *doc, struct cos_object **cobj_out)
+{
+    nspdferror res;
+    struct cos_object *cobj;
+    struct cos_object *indirect;
+    uint64_t offset;
+    struct xref_table_entry *entry;
+
+    cobj = *cobj_out;
+
+    if (cobj->type != COS_TYPE_REFERENCE) {
+        /* not passed a reference object so just return what was passed */
+        return NSPDFERROR_OK;
+    }
+
+    entry = doc->xref_table + cobj->u.reference->id;
+
+    /* check if referenced object is in range and exists. return null object if
+     * not
+     */
+    if ((cobj->u.reference->id >= doc->xref_size) ||
+        (cobj->u.reference->id == 0) ||
+        (entry->ref.id == 0)) {
+        *cobj_out = &cos_null_obj;
+        return NSPDFERROR_OK;
+    }
+
+    if (entry->object == NULL) {
+        /* indirect object has never been decoded */
+        offset = entry->offset;
+        res = cos_decode_object(doc, &offset, &indirect);
+        if (res != NSPDFERROR_OK) {
+            return res;
+        }
+
+        entry->object = indirect;
+    }
+
+    cobj = entry->object;
+
+    return NSPDFERROR_OK;
 }

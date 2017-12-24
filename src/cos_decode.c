@@ -10,9 +10,13 @@
 #include "cos_object.h"
 #include "pdf_doc.h"
 
+/** increments in which cos string allocations are extended */
 #define COS_STRING_ALLOC 32
 
-nspdferror
+/** Maximum length of cos name */
+#define NAME_MAX_LENGTH 127
+
+static nspdferror
 cos_string_append(struct cos_string *s, uint8_t c)
 {
     //printf("appending 0x%x to %p len %d alloc %d\n", c, s->data, s->length, s->alloc);
@@ -29,7 +33,7 @@ cos_string_append(struct cos_string *s, uint8_t c)
     return NSPDFERROR_OK;
 }
 
-uint8_t xtoi(uint8_t x)
+static uint8_t xtoi(uint8_t x)
 {
     if (x >= '0' && x <= '9') {
         x = x - '0';
@@ -41,7 +45,8 @@ uint8_t xtoi(uint8_t x)
     return x;
 }
 
-int cos_decode_number(struct pdf_doc *doc,
+static nspdferror
+cos_decode_number(struct pdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
@@ -60,7 +65,8 @@ int cos_decode_number(struct pdf_doc *doc,
             uint64_t tens;
 
             if (len == 0) {
-                return -2; /* parse error no decimals in input */
+                 /* parse error no decimals in input */
+                return NSPDFERROR_SYNTAX;
             }
             /* sum value from each place */
             for (tens = 1; len > 0; tens = tens * 10, len--) {
@@ -71,7 +77,7 @@ int cos_decode_number(struct pdf_doc *doc,
 
             cosobj = calloc(1, sizeof(struct cos_object));
             if (cosobj == NULL) {
-                return -1; /* memory error */
+                return NSPDFERROR_NOMEM;
             }
 
             cosobj->type = COS_TYPE_INT;
@@ -81,20 +87,20 @@ int cos_decode_number(struct pdf_doc *doc,
 
             *offset_out = offset;
 
-            return 0;
+            return NSPDFERROR_OK;
         }
         num[len] = c - '0';
         offset++;
     }
-    return -1; /* number too long */
+    return NSPDFERROR_RANGE; /* number too long */
 }
 
 
 /**
- * literal string processing
+ * decode literal string
  *
  */
-nspdferror
+static nspdferror
 cos_decode_string(struct pdf_doc *doc,
                   uint64_t *offset_out,
                   struct cos_object **cosobj_out)
@@ -220,8 +226,10 @@ cos_decode_string(struct pdf_doc *doc,
     return NSPDFERROR_OK;
 }
 
-
-nspdferror
+/**
+ * decode hex encoded string
+ */
+static nspdferror
 cos_decode_hex_string(struct pdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
@@ -281,8 +289,11 @@ cos_decode_hex_string(struct pdf_doc *doc,
     return NSPDFERROR_SYNTAX;
 }
 
-
-int cos_decode_dictionary(struct pdf_doc *doc,
+/**
+ * decode a dictionary object
+ */
+static nspdferror
+cos_decode_dictionary(struct pdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
@@ -302,7 +313,7 @@ int cos_decode_dictionary(struct pdf_doc *doc,
     offset += 2;
     doc_skip_ws(doc, &offset);
 
-    printf("found a dictionary\n");
+    //printf("found a dictionary\n");
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
@@ -314,7 +325,7 @@ int cos_decode_dictionary(struct pdf_doc *doc,
            (DOC_BYTE(doc, offset + 1) != '>')) {
 
         res = cos_decode_object(doc, &offset, &key);
-        if (res != 0) {
+        if (res != NSPDFERROR_OK) {
             /* todo free up any dictionary entries already created */
             printf("key object decode failed\n");
             return res;
@@ -322,12 +333,12 @@ int cos_decode_dictionary(struct pdf_doc *doc,
         if (key->type != COS_TYPE_NAME) {
             /* key value pairs without a name */
             printf("key was %d not a name %d\n", key->type, COS_TYPE_NAME);
-            return -1; /* syntax error */
+            return NSPDFERROR_SYNTAX;
         }
-        printf("key: %s\n", key->u.n);
+        //printf("key: %s\n", key->u.n);
 
         res = cos_decode_object(doc, &offset, &value);
-        if (res != 0) {
+        if (res != NSPDFERROR_OK) {
             printf("Unable to decode value object in dictionary\n");
             /* todo free up any dictionary entries already created */
             return res;
@@ -337,7 +348,7 @@ int cos_decode_dictionary(struct pdf_doc *doc,
         entry = calloc(1, sizeof(struct cos_dictionary_entry));
         if (entry == NULL) {
             /* todo free up any dictionary entries already created */
-            return -1; /* memory error */
+            return NSPDFERROR_NOMEM;
         }
 
         entry->key = key;
@@ -353,11 +364,13 @@ int cos_decode_dictionary(struct pdf_doc *doc,
     *cosobj_out = cosobj;
     *offset_out = offset;
 
-    return 0;
+    return NSPDFERROR_OK;
 }
 
-
-nspdferror
+/**
+ * decode a list
+ */
+static nspdferror
 cos_decode_list(struct pdf_doc *doc,
                 uint64_t *offset_out,
                 struct cos_object **cosobj_out)
@@ -419,19 +432,19 @@ cos_decode_list(struct pdf_doc *doc,
     *cosobj_out = cosobj;
     *offset_out = offset;
 
-    return 0;
+    return NSPDFERROR_OK;
 }
 
-#define NAME_MAX_LENGTH 127
 
 /**
  * decode a name object
  *
  * \todo deal with # symbols on pdf versions 1.2 and later
  */
-int cos_decode_name(struct pdf_doc *doc,
-                      uint64_t *offset_out,
-                      struct cos_object **cosobj_out)
+static nspdferror
+cos_decode_name(struct pdf_doc *doc,
+                uint64_t *offset_out,
+                struct cos_object **cosobj_out)
 {
     uint64_t offset;
     struct cos_object *cosobj;
@@ -445,7 +458,7 @@ int cos_decode_name(struct pdf_doc *doc,
     if (c != '/') {
         return -1; /* names must be prefixed with a / */
     }
-    printf("found a name\n");
+    //printf("found a name\n");
 
     c = DOC_BYTE(doc, offset);
     while ((idx <= NAME_MAX_LENGTH) &&
@@ -468,7 +481,7 @@ int cos_decode_name(struct pdf_doc *doc,
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
-        return -1; /* memory error */
+        return NSPDFERROR_NOMEM; /* memory error */
     }
 
     cosobj->type = COS_TYPE_NAME;
@@ -478,13 +491,16 @@ int cos_decode_name(struct pdf_doc *doc,
 
     *offset_out = offset;
 
-    return 0;
+    return NSPDFERROR_OK;
 }
 
-
-int cos_decode_boolean(struct pdf_doc *doc,
-                      uint64_t *offset_out,
-                      struct cos_object **cosobj_out)
+/**
+ * decode a cos boolean object
+ */
+static int
+cos_decode_boolean(struct pdf_doc *doc,
+                   uint64_t *offset_out,
+                   struct cos_object **cosobj_out)
 {
     uint64_t offset;
     struct cos_object *cosobj;
@@ -541,7 +557,7 @@ int cos_decode_boolean(struct pdf_doc *doc,
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
-        return -1; /* memory error */
+        return NSPDFERROR_NOMEM; /* memory error */
     }
 
     cosobj->type = COS_TYPE_BOOL;
@@ -551,13 +567,16 @@ int cos_decode_boolean(struct pdf_doc *doc,
 
     *offset_out = offset;
 
-    return 0;
-
+    return NSPDFERROR_OK;
 }
 
-int cos_decode_null(struct pdf_doc *doc,
-                      uint64_t *offset_out,
-                      struct cos_object **cosobj_out)
+/**
+ * decode the null object.
+ */
+static nspdferror
+cos_decode_null(struct pdf_doc *doc,
+                uint64_t *offset_out,
+                struct cos_object **cosobj_out)
 {
     uint64_t offset;
     struct cos_object *cosobj;
@@ -569,14 +588,17 @@ int cos_decode_null(struct pdf_doc *doc,
     if ((c != 'n') && (c != 'N')) {
         return -1; /* syntax error */
     }
+
     c = DOC_BYTE(doc, offset++);
     if ((c != 'u') && (c != 'U')) {
         return -1; /* syntax error */
     }
+
     c = DOC_BYTE(doc, offset++);
     if ((c != 'l') && (c != 'L')) {
         return -1; /* syntax error */
     }
+
     c = DOC_BYTE(doc, offset++);
     if ((c != 'l') && (c != 'L')) {
         return -1; /* syntax error */
@@ -586,14 +608,15 @@ int cos_decode_null(struct pdf_doc *doc,
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
-        return -1; /* memory error */
+        return NSPDFERROR_NOMEM;
     }
 
     cosobj->type = COS_TYPE_NULL;
     *offset_out = offset;
 
-    return 0;
+    return NSPDFERROR_OK;
 }
+
 
 /**
  * attempt to decode the stream into a reference
@@ -607,9 +630,10 @@ int cos_decode_null(struct pdf_doc *doc,
  * \param cosobj_out the object to return into, on input contains the first
  * integer
  */
-int cos_attempt_decode_reference(struct pdf_doc *doc,
-                      uint64_t *offset_out,
-                      struct cos_object **cosobj_out)
+static nspdferror
+cos_attempt_decode_reference(struct pdf_doc *doc,
+                             uint64_t *offset_out,
+                             struct cos_object **cosobj_out)
 {
     uint64_t offset;
     struct cos_object *cosobj; /* possible generation object */
@@ -621,13 +645,14 @@ int cos_attempt_decode_reference(struct pdf_doc *doc,
 
     res = cos_decode_number(doc, &offset, &cosobj);
     if (res != 0) {
-        return 0; /* no error if object could not be decoded */
+        /* no error if next token could not be decoded as a number */
+        return NSPDFERROR_OK;
     }
 
     if (cosobj->type != COS_TYPE_INT) {
         /* next object was not an integer so not a reference */
         cos_free_object(cosobj);
-        return 0;
+        return NSPDFERROR_OK;
     }
 
     if (cosobj->u.i < 0) {
@@ -635,8 +660,7 @@ int cos_attempt_decode_reference(struct pdf_doc *doc,
          * non-negative
          */
         cos_free_object(cosobj);
-        return 0;
-
+        return NSPDFERROR_OK;
     }
 
     /* two int in a row, look for the R */
@@ -644,18 +668,18 @@ int cos_attempt_decode_reference(struct pdf_doc *doc,
     if (c != 'R') {
         /* no R so not a reference */
         cos_free_object(cosobj);
-        return 0;
+        return NSPDFERROR_OK;
     }
 
     /* found reference */
 
-    printf("found reference\n");
+    //printf("found reference\n");
     doc_skip_ws(doc, &offset);
 
     nref = calloc(1, sizeof(struct cos_reference));
     if (nref == NULL) {
-        /* todo free objects */
-        return -1; /* memory error */
+        /** \todo free objects */
+        return NSPDFERROR_NOMEM; /* memory error */
     }
 
     nref->id = (*cosobj_out)->u.i;
@@ -670,10 +694,11 @@ int cos_attempt_decode_reference(struct pdf_doc *doc,
 
     *offset_out = offset;
 
-    return 0;
+    return NSPDFERROR_OK;
 }
 
-/**
+
+/*
  * Decode input stream into an object
  *
  * lex and parse a byte stream to generate COS objects
@@ -704,7 +729,8 @@ int cos_attempt_decode_reference(struct pdf_doc *doc,
  *   TOK_STRING |
  *   list |
  *   dictionary |
- *   object_reference;
+ *   object_reference |
+ *   indirect_object;
  *
  * list:
  *   '[' listargs ']';
@@ -717,13 +743,20 @@ int cos_attempt_decode_reference(struct pdf_doc *doc,
  *
  * object_reference:
  *   TOK_UINT TOK_UINT 'R';
+ *
+ * indirect_object:
+ *   TOK_UINT TOK_UINT 'obj' cos_object 'endobj'
+ *   |
+ *  TOK_UINT TOK_UINT 'obj' dictionary 'stream' streamdata 'endstream' 'endobj'
+ *   ;
  */
-int cos_decode_object(struct pdf_doc *doc,
-                      uint64_t *offset_out,
-                      struct cos_object **cosobj_out)
+nspdferror
+cos_decode_object(struct pdf_doc *doc,
+                  uint64_t *offset_out,
+                  struct cos_object **cosobj_out)
 {
     uint64_t offset;
-    int res;
+    nspdferror res;
     struct cos_object *cosobj;
 
     offset = *offset_out;
@@ -786,11 +819,10 @@ int cos_decode_object(struct pdf_doc *doc,
         break;
 
     default:
-        res = -1; /* syntax error */
+        res = NSPDFERROR_SYNTAX; /* syntax error */
     }
 
-
-    if (res == 0) {
+    if (res == NSPDFERROR_OK) {
         *cosobj_out = cosobj;
         *offset_out = offset;
     }
