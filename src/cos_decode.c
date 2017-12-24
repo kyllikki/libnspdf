@@ -612,6 +612,9 @@ cos_decode_null(struct pdf_doc *doc,
     }
 
     cosobj->type = COS_TYPE_NULL;
+
+    *cosobj_out = cosobj;
+
     *offset_out = offset;
 
     return NSPDFERROR_OK;
@@ -619,14 +622,20 @@ cos_decode_null(struct pdf_doc *doc,
 
 
 /**
- * attempt to decode the stream into a reference
+ * attempt to decode input data into a reference, indirect or stream object
  *
- * The stream has already had a positive integer decoded from it. if another
- * positive integer follows and a R character after that it is a reference,
- * otherwise bail, but not finding a ref is not an error!
+ * The input data already had a positive integer decoded from it:
+ * - if another positive integer follows and a R character after that it is a
+ *     reference,
+ *
+ * - if another positive integer follows and 'obj' after that:
+ *     - a direct object followed by 'endobj' it is an indirect object.
+ *
+ *     - a direct dictionary object followed by 'stream', then stream data,
+ *       then 'endstream' then 'endobj' it is a stream object
  *
  * \param doc the pdf document
- * \param offset_out offset of current cursor in stream
+ * \param offset_out offset of current cursor in input data
  * \param cosobj_out the object to return into, on input contains the first
  * integer
  */
@@ -635,31 +644,31 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
                              uint64_t *offset_out,
                              struct cos_object **cosobj_out)
 {
+    nspdferror res;
     uint64_t offset;
-    struct cos_object *cosobj; /* possible generation object */
     uint8_t c;
-    int res;
+    struct cos_object *generation; /* generation object, reused for output */
     struct cos_reference *nref; /* new reference */
 
     offset = *offset_out;
 
-    res = cos_decode_number(doc, &offset, &cosobj);
+    res = cos_decode_number(doc, &offset, &generation);
     if (res != 0) {
         /* no error if next token could not be decoded as a number */
         return NSPDFERROR_OK;
     }
 
-    if (cosobj->type != COS_TYPE_INT) {
+    if (generation->type != COS_TYPE_INT) {
         /* next object was not an integer so not a reference */
-        cos_free_object(cosobj);
+        cos_free_object(generation);
         return NSPDFERROR_OK;
     }
 
-    if (cosobj->u.i < 0) {
+    if (generation->u.i < 0) {
         /* integer was negative so not a reference (generations must be
          * non-negative
          */
-        cos_free_object(cosobj);
+        cos_free_object(generation);
         return NSPDFERROR_OK;
     }
 
@@ -667,7 +676,7 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
     c = DOC_BYTE(doc, offset++);
     if (c != 'R') {
         /* no R so not a reference */
-        cos_free_object(cosobj);
+        cos_free_object(generation);
         return NSPDFERROR_OK;
     }
 
@@ -683,14 +692,14 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
     }
 
     nref->id = (*cosobj_out)->u.i;
-    nref->generation = cosobj->u.i;
+    nref->generation = generation->u.i;
 
     cos_free_object(*cosobj_out);
 
-    cosobj->type = COS_TYPE_REFERENCE;
-    cosobj->u.reference = nref;
+    generation->type = COS_TYPE_REFERENCE;
+    generation->u.reference = nref;
 
-    *cosobj_out = cosobj;
+    *cosobj_out = generation;
 
     *offset_out = offset;
 

@@ -1,6 +1,16 @@
+/*
+ * Copyright 2017 Vincent Sanders <vince@netsurf-browser.org>
+ *
+ * This file is part of libnspsl
+ *
+ * Licensed under the MIT License,
+ *                http://www.opensource.org/licenses/mit-license.php
+ */
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "nspdferror.h"
 #include "byte_class.h"
@@ -82,6 +92,7 @@ xref_get_referenced(struct pdf_doc *doc, struct cos_object **cobj_out)
         offset = entry->offset;
         res = cos_decode_object(doc, &offset, &indirect);
         if (res != NSPDFERROR_OK) {
+            printf("failed to decode indirect object\n");
             return res;
         }
 
