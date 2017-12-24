@@ -59,6 +59,7 @@ nspdferror cos_free_object(struct cos_object *cos_obj)
             aentry = aentry->next;
             free(oaentry);
         }
+        break;
 
     case COS_TYPE_STREAM:
         free(cos_obj->u.stream);

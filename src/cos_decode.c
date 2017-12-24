@@ -396,7 +396,7 @@ cos_decode_list(struct pdf_doc *doc,
         return res;
     }
 
-    printf("found a list\n");
+    //printf("found a list\n");
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
@@ -647,13 +647,12 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
     nspdferror res;
     uint64_t offset;
     uint8_t c;
-    struct cos_object *generation; /* generation object, reused for output */
-    struct cos_reference *nref; /* new reference */
+    struct cos_object *generation; /* generation object */
 
     offset = *offset_out;
 
     res = cos_decode_number(doc, &offset, &generation);
-    if (res != 0) {
+    if (res != NSPDFERROR_OK) {
         /* no error if next token could not be decoded as a number */
         return NSPDFERROR_OK;
     }
@@ -673,36 +672,81 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
     }
 
     /* two int in a row, look for the R */
-    c = DOC_BYTE(doc, offset++);
-    if (c != 'R') {
-        /* no R so not a reference */
-        cos_free_object(generation);
-        return NSPDFERROR_OK;
+    c = DOC_BYTE(doc, offset);
+    if (c == 'R') {
+        struct cos_reference *nref; /* new reference */
+
+        //printf("found object reference\n");
+        offset ++;
+
+        doc_skip_ws(doc, &offset);
+
+        nref = calloc(1, sizeof(struct cos_reference));
+        if (nref == NULL) {
+            cos_free_object(generation);
+            return NSPDFERROR_NOMEM; /* memory error */
+        }
+
+        nref->id = (*cosobj_out)->u.i;
+        nref->generation = generation->u.i;
+
+        /* overwrite input object for output (it has to be an int which has no
+         * allocation to free)
+         */
+        (*cosobj_out)->type = COS_TYPE_REFERENCE;
+        (*cosobj_out)->u.reference = nref;
+
+        *offset_out = offset;
+
+    } else if ((c == 'o') &&
+               (DOC_BYTE(doc, offset + 1) == 'b') &&
+               (DOC_BYTE(doc, offset + 2) == 'j')) {
+        struct cos_object *indirect; /* indirect object */
+        //printf("indirect\n");
+        offset += 3;
+
+        res = doc_skip_ws(doc, &offset);
+        if (res != NSPDFERROR_OK) {
+            cos_free_object(generation);
+            return res;
+        }
+        //printf("decoding\n");
+
+        res = cos_decode_object(doc, &offset, &indirect);
+        if (res != NSPDFERROR_OK) {
+            cos_free_object(generation);
+            return res;
+        }
+        //printf("parsed object type %d\nendobj\n",indirect->type);
+
+        if ((DOC_BYTE(doc, offset    ) != 'e') &&
+            (DOC_BYTE(doc, offset + 1) != 'n') &&
+            (DOC_BYTE(doc, offset + 2) != 'd') &&
+            (DOC_BYTE(doc, offset + 1) != 'o') &&
+            (DOC_BYTE(doc, offset + 2) != 'b') &&
+            (DOC_BYTE(doc, offset + 3) != 'j')) {
+            cos_free_object(indirect);
+            cos_free_object(generation);
+            return NSPDFERROR_SYNTAX;
+        }
+        offset += 6;
+        //printf("skipping\n");
+
+        res = doc_skip_ws(doc, &offset);
+        if (res != NSPDFERROR_OK) {
+            cos_free_object(indirect);
+            cos_free_object(generation);
+            return res;
+        }
+
+        cos_free_object(*cosobj_out);
+
+        *cosobj_out = indirect;
+
+        *offset_out = offset;
     }
 
-    /* found reference */
-
-    //printf("found reference\n");
-    doc_skip_ws(doc, &offset);
-
-    nref = calloc(1, sizeof(struct cos_reference));
-    if (nref == NULL) {
-        /** \todo free objects */
-        return NSPDFERROR_NOMEM; /* memory error */
-    }
-
-    nref->id = (*cosobj_out)->u.i;
-    nref->generation = generation->u.i;
-
-    cos_free_object(*cosobj_out);
-
-    generation->type = COS_TYPE_REFERENCE;
-    generation->u.reference = nref;
-
-    *cosobj_out = generation;
-
-    *offset_out = offset;
-
+    cos_free_object(generation);
     return NSPDFERROR_OK;
 }
 

@@ -99,7 +99,7 @@ xref_get_referenced(struct pdf_doc *doc, struct cos_object **cobj_out)
         entry->object = indirect;
     }
 
-    cobj = entry->object;
+    *cobj_out = entry->object;
 
     return NSPDFERROR_OK;
 }
