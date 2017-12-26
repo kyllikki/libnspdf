@@ -365,7 +365,6 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
     uint64_t offset; /* the current data offset */
     uint64_t startxref; /* the value of the startxref field */
     struct cos_object *trailer; /* the current trailer */
-    struct cos_object *cobj_prev;
     int64_t prev;
 
     offset = xref_offset;
@@ -394,22 +393,15 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
 
     if (doc->xref_table == NULL) {
         /* extract Size from trailer and create xref table large enough */
-        struct cos_object *cobj_size;
         int64_t size;
 
-        res = cos_dictionary_get_value(trailer, "Size", &cobj_size);
+        res = cos_get_dictionary_int(doc, trailer, "Size", &size);
         if (res != NSPDFERROR_OK) {
-            printf("trailer has no Size value\n");
+            printf("trailer has no integer Size value\n");
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_get_int(doc, cobj_size, &size);
-        if (res != NSPDFERROR_OK) {
-            printf("trailer Size not int\n");
-            goto decode_xref_trailer_failed;
-        }
-
-        res = cos_dictionary_extract_value(trailer, "Root", &doc->root);
+        res = cos_extract_dictionary_value(trailer, "Root", &doc->root);
         if (res != NSPDFERROR_OK) {
             printf("no Root!\n");
             goto decode_xref_trailer_failed;
@@ -422,17 +414,17 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
         }
         doc->xref_size = size;
 
-        res = cos_dictionary_extract_value(trailer, "Encrypt", &doc->encrypt);
+        res = cos_extract_dictionary_value(trailer, "Encrypt", &doc->encrypt);
         if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_dictionary_extract_value(trailer, "Info", &doc->info);
+        res = cos_extract_dictionary_value(trailer, "Info", &doc->info);
         if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_dictionary_extract_value(trailer, "ID", &doc->id);
+        res = cos_extract_dictionary_value(trailer, "ID", &doc->id);
         if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
             goto decode_xref_trailer_failed;
         }
@@ -440,14 +432,8 @@ nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
     }
 
     /* check for prev ID key in trailer and recurse call if present */
-    res = cos_dictionary_get_value(trailer, "Prev", &cobj_prev);
+    res = cos_get_dictionary_int(doc, trailer, "Prev", &prev);
     if (res == NSPDFERROR_OK) {
-        res = cos_get_int(doc, cobj_prev, &prev);
-        if (res != NSPDFERROR_OK) {
-            printf("trailer Prev not int\n");
-            goto decode_xref_trailer_failed;
-        }
-
         res = decode_xref_trailer(doc, prev);
         if (res != NSPDFERROR_OK) {
             goto decode_xref_trailer_failed;
@@ -517,9 +503,38 @@ nspdferror decode_catalog(struct pdf_doc *doc)
 {
     nspdferror res;
     struct cos_object *catalog;
+    const char *type;
+    struct cos_object *pages;
 
     res = cos_get_dictionary(doc, doc->root, &catalog);
-    
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    // Type = Catalog
+    res = cos_get_dictionary_name(doc, catalog, "Type", &type);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    if (strcmp(type, "Catalog") != 0) {
+        return NSPDFERROR_FORMAT;
+    }
+
+    // Pages
+    res = cos_get_dictionary_dictionary(doc, catalog, "Pages", &pages);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    // Type = Pages
+    res = cos_get_dictionary_name(doc, pages, "Type", &type);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    if (strcmp(type, "Pages") != 0) {
+        return NSPDFERROR_FORMAT;
+    }
+
     return res;
 }
 
@@ -538,6 +553,11 @@ int main(int argc, char **argv)
 {
     struct pdf_doc *doc;
     int res;
+
+    if (argc < 2) {
+        fprintf(stderr, "Usage %s <filename>\n", argv[0]);
+        return 1;
+    }
 
     res = new_pdf_doc(&doc);
     if (res != NSPDFERROR_OK) {

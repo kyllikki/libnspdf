@@ -71,35 +71,14 @@ nspdferror cos_free_object(struct cos_object *cos_obj)
     return NSPDFERROR_OK;
 }
 
-nspdferror
-cos_dictionary_get_value(struct cos_object *dict,
-                         const char *key,
-                         struct cos_object **value_out)
-{
-    struct cos_dictionary_entry *entry;
 
-    if (dict->type != COS_TYPE_DICTIONARY) {
-        return NSPDFERROR_TYPE;
-    }
-
-    entry = dict->u.dictionary;
-    while (entry != NULL) {
-        if (strcmp(entry->key->u.n, key) == 0) {
-            *value_out = entry->value;
-            return NSPDFERROR_OK;
-        }
-        entry = entry->next;
-    }
-    return NSPDFERROR_NOTFOUND;
-}
-
-/**
+/*
  * extracts a value for a key in a dictionary.
  *
  * this finds and returns a value for a given key removing it from a dictionary
  */
 nspdferror
-cos_dictionary_extract_value(struct cos_object *dict,
+cos_extract_dictionary_value(struct cos_object *dict,
                              const char *key,
                              struct cos_object **value_out)
 {
@@ -126,6 +105,88 @@ cos_dictionary_extract_value(struct cos_object *dict,
     return NSPDFERROR_NOTFOUND;
 }
 
+
+/*
+ * get a value for a key from a dictionary
+ */
+nspdferror
+cos_get_dictionary_value(struct pdf_doc *doc,
+                         struct cos_object *dict,
+                         const char *key,
+                         struct cos_object **value_out)
+{
+    nspdferror res;
+    struct cos_dictionary_entry *entry;
+
+    res = xref_get_referenced(doc, &dict);
+    if (res == NSPDFERROR_OK) {
+        if (dict->type != COS_TYPE_DICTIONARY) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            res = NSPDFERROR_NOTFOUND;
+
+            entry = dict->u.dictionary;
+            while (entry != NULL) {
+                if (strcmp(entry->key->u.n, key) == 0) {
+                    *value_out = entry->value;
+                    res = NSPDFERROR_OK;
+                    break;
+                }
+                entry = entry->next;
+            }
+        }
+    }
+    return res;
+}
+
+nspdferror
+cos_get_dictionary_int(struct pdf_doc *doc,
+                       struct cos_object *dict,
+                       const char *key,
+                       int64_t *value_out)
+{
+    nspdferror res;
+    struct cos_object *dict_value;
+
+    res = cos_get_dictionary_value(doc, dict, key, &dict_value);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_int(doc, dict_value, value_out);
+}
+
+nspdferror
+cos_get_dictionary_name(struct pdf_doc *doc,
+                        struct cos_object *dict,
+                        const char *key,
+                        const char **value_out)
+{
+    nspdferror res;
+    struct cos_object *dict_value;
+
+    res = cos_get_dictionary_value(doc, dict, key, &dict_value);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_name(doc, dict_value, value_out);
+}
+
+nspdferror
+cos_get_dictionary_dictionary(struct pdf_doc *doc,
+                        struct cos_object *dict,
+                        const char *key,
+                        struct cos_object **value_out)
+{
+    nspdferror res;
+    struct cos_object *dict_value;
+
+    res = cos_get_dictionary_value(doc, dict, key, &dict_value);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_dictionary(doc, dict_value, value_out);
+}
+
 nspdferror
 cos_get_int(struct pdf_doc *doc,
             struct cos_object *cobj,
@@ -143,6 +204,26 @@ cos_get_int(struct pdf_doc *doc,
     }
     return res;
 }
+
+nspdferror
+cos_get_name(struct pdf_doc *doc,
+            struct cos_object *cobj,
+            const char **value_out)
+{
+    nspdferror res;
+
+    res = xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type != COS_TYPE_NAME) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            *value_out = cobj->u.n;
+        }
+    }
+    return res;
+}
+
+
 
 nspdferror
 cos_get_dictionary(struct pdf_doc *doc,

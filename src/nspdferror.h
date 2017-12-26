@@ -6,4 +6,5 @@ typedef enum {
     NSPDFERROR_RANGE, /**< value outside type range */
     NSPDFERROR_TYPE, /**< wrong type error */
     NSPDFERROR_NOTFOUND, /**< key not found */
+    NSPDFERROR_FORMAT, /**< objects do not cornform to expected format */
 } nspdferror;

@@ -92,13 +92,45 @@ nspdferror cos_decode_object(struct pdf_doc *doc, uint64_t *offset_out, struct c
 
 nspdferror cos_free_object(struct cos_object *cos_obj);
 
-nspdferror cos_dictionary_get_value(struct cos_object *dict, const char *key, struct cos_object **value_out);
+/**
+ * extract a value for a key from a dictionary
+ *
+ * This retrieves the value of a given key in a dictionary and removes it from
+ * the dictionary.
+ *
+ * \param dict The dictionary
+ * \param key The key to lookup
+ * \param value_out The value object associated with the key
+ * \return NSPDFERROR_OK and value_out updated on success.
+ *         NSPDFERROR_TYPE if the object passed in \p dict is not a dictionary.
+ *         NSPDFERROR_NOTFOUND if the key is not present in the dictionary.
+ */
+nspdferror cos_extract_dictionary_value(struct cos_object *dict, const char *key, struct cos_object **value_out);
 
-nspdferror cos_dictionary_extract_value(struct cos_object *dict, const char *key, struct cos_object **value_out);
+/**
+ * get a value for a key from a dictionary
+ *
+ * \param dict The dictionary
+ * \param key The key to lookup
+ * \param value_out The value object associated with the key
+ * \return NSPDFERROR_OK and value_out updated on success.
+ *         NSPDFERROR_TYPE if the object passed in \p dict is not a dictionary.
+ *         NSPDFERROR_NOTFOUND if the key is not present in the dictionary.
+ */
+nspdferror cos_get_dictionary_value(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
+
+nspdferror cos_get_dictionary_int(struct pdf_doc *doc, struct cos_object *dict, const char *key, int64_t *value_out);
+
+
+nspdferror cos_get_dictionary_name(struct pdf_doc *doc, struct cos_object *dict, const char *key, const char **value_out);
+
+nspdferror cos_get_dictionary_dictionary(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
 nspdferror cos_get_int(struct pdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
 
+
+nspdferror cos_get_name(struct pdf_doc *doc, struct cos_object *cobj, const char **value_out);
+
+
 nspdferror cos_get_dictionary(struct pdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
-
-
