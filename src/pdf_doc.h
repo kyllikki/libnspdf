@@ -10,6 +10,12 @@ struct xref_table_entry {
     struct cos_object *object;
 };
 
+/** page entry */
+struct page_table_entry {
+    struct cos_object *resources;
+    struct cos_object *mediabox;
+    struct cos_object *contents;
+};
 
 /** pdf document */
 struct pdf_doc {
@@ -33,6 +39,9 @@ struct pdf_doc {
     struct cos_object *info;
     struct cos_object *id;
 
+    /* page refrerence table */
+    uint64_t page_table_size;
+    struct page_table_entry *page_table;
 };
 
 /* byte data acessory, allows for more complex buffer handling in future */

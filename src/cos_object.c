@@ -188,6 +188,59 @@ cos_get_dictionary_dictionary(struct pdf_doc *doc,
 }
 
 nspdferror
+cos_heritable_dictionary_dictionary(struct pdf_doc *doc,
+                        struct cos_object *dict,
+                        const char *key,
+                        struct cos_object **value_out)
+{
+    nspdferror res;
+    struct cos_object *dict_value;
+    res = cos_get_dictionary_value(doc, dict, key, &dict_value);
+    if (res == NSPDFERROR_NOTFOUND) {
+        /* \todo get parent entry and extract key from that dictionary instead */
+    }
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_dictionary(doc, dict_value, value_out);
+}
+
+nspdferror
+cos_get_dictionary_array(struct pdf_doc *doc,
+                        struct cos_object *dict,
+                        const char *key,
+                        struct cos_object **value_out)
+{
+    nspdferror res;
+    struct cos_object *dict_value;
+
+    res = cos_get_dictionary_value(doc, dict, key, &dict_value);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_array(doc, dict_value, value_out);
+}
+
+nspdferror
+cos_heritable_dictionary_array(struct pdf_doc *doc,
+                        struct cos_object *dict,
+                        const char *key,
+                        struct cos_object **value_out)
+{
+    nspdferror res;
+    struct cos_object *dict_value;
+
+    res = cos_get_dictionary_value(doc, dict, key, &dict_value);
+    if (res == NSPDFERROR_NOTFOUND) {
+        /* \todo get parent entry and extract key from that dictionary instead */
+    }
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_array(doc, dict_value, value_out);
+}
+
+nspdferror
 cos_get_int(struct pdf_doc *doc,
             struct cos_object *cobj,
             int64_t *value_out)
@@ -238,6 +291,101 @@ cos_get_dictionary(struct pdf_doc *doc,
             res = NSPDFERROR_TYPE;
         } else {
             *value_out = cobj;
+        }
+    }
+    return res;
+}
+
+nspdferror
+cos_get_array(struct pdf_doc *doc,
+                   struct cos_object *cobj,
+                   struct cos_object **value_out)
+{
+    nspdferror res;
+
+    res = xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type != COS_TYPE_ARRAY) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            *value_out = cobj;
+        }
+    }
+    return res;
+}
+
+/*
+ * get a value for a key from a dictionary
+ */
+nspdferror
+cos_get_array_value(struct pdf_doc *doc,
+                    struct cos_object *array,
+                    unsigned int index,
+                    struct cos_object **value_out)
+{
+    nspdferror res;
+    struct cos_array_entry *entry;
+
+    res = xref_get_referenced(doc, &array);
+    if (res == NSPDFERROR_OK) {
+        if (array->type != COS_TYPE_ARRAY) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            unsigned int cur_index = 0;
+            res = NSPDFERROR_RANGE;
+
+            entry = array->u.array;
+            while (entry != NULL) {
+                if (cur_index == index) {
+                    *value_out = entry->value;
+                    res = NSPDFERROR_OK;
+                    break;
+                }
+                cur_index++;
+                entry = entry->next;
+            }
+        }
+    }
+    return res;
+}
+
+nspdferror
+cos_get_array_dictionary(struct pdf_doc *doc,
+                        struct cos_object *array,
+                        unsigned int index,
+                        struct cos_object **value_out)
+{
+    nspdferror res;
+    struct cos_object *array_value;
+
+    res = cos_get_array_value(doc, array, index, &array_value);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_dictionary(doc, array_value, value_out);
+}
+
+nspdferror
+cos_get_array_size(struct pdf_doc *doc,
+                   struct cos_object *cobj,
+                   unsigned int *size_out)
+{
+    nspdferror res;
+    unsigned int array_size = 0;
+    struct cos_array_entry *array_entry;
+
+    res = xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type != COS_TYPE_ARRAY) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            /* walk array list to enumerate entries */
+            array_entry = cobj->u.array;
+            while (array_entry != NULL) {
+                array_size++;
+                array_entry = array_entry->next;
+            }
+            *size_out = array_size;
         }
     }
     return res;

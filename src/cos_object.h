@@ -127,6 +127,13 @@ nspdferror cos_get_dictionary_name(struct pdf_doc *doc, struct cos_object *dict,
 
 nspdferror cos_get_dictionary_dictionary(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
+nspdferror cos_heritable_dictionary_dictionary(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+
+nspdferror cos_get_dictionary_array(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+
+nspdferror cos_heritable_dictionary_array(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+
+
 nspdferror cos_get_int(struct pdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
 
 
@@ -134,3 +141,11 @@ nspdferror cos_get_name(struct pdf_doc *doc, struct cos_object *cobj, const char
 
 
 nspdferror cos_get_dictionary(struct pdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
+
+nspdferror cos_get_array(struct pdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
+
+nspdferror cos_get_array_size(struct pdf_doc *doc, struct cos_object *cobj, unsigned int *size_out);
+
+nspdferror cos_get_array_value(struct pdf_doc *doc, struct cos_object *array, unsigned int index, struct cos_object **value_out);
+
+nspdferror cos_get_array_dictionary(struct pdf_doc *doc, struct cos_object *arrau, unsigned int index, struct cos_object **value_out);
