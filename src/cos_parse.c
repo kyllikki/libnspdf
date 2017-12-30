@@ -5,8 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <nspdf/errors.h>
+
+#include "cos_parse.h"
 #include "byte_class.h"
-#include "nspdferror.h"
 #include "cos_object.h"
 #include "pdf_doc.h"
 
@@ -46,7 +48,7 @@ static uint8_t xtoi(uint8_t x)
 }
 
 static nspdferror
-cos_decode_number(struct pdf_doc *doc,
+cos_decode_number(struct nspdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
@@ -101,7 +103,7 @@ cos_decode_number(struct pdf_doc *doc,
  *
  */
 static nspdferror
-cos_decode_string(struct pdf_doc *doc,
+cos_decode_string(struct nspdf_doc *doc,
                   uint64_t *offset_out,
                   struct cos_object **cosobj_out)
 {
@@ -230,7 +232,7 @@ cos_decode_string(struct pdf_doc *doc,
  * decode hex encoded string
  */
 static nspdferror
-cos_decode_hex_string(struct pdf_doc *doc,
+cos_decode_hex_string(struct nspdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
@@ -293,7 +295,7 @@ cos_decode_hex_string(struct pdf_doc *doc,
  * decode a dictionary object
  */
 static nspdferror
-cos_decode_dictionary(struct pdf_doc *doc,
+cos_decode_dictionary(struct nspdf_doc *doc,
                       uint64_t *offset_out,
                       struct cos_object **cosobj_out)
 {
@@ -324,7 +326,7 @@ cos_decode_dictionary(struct pdf_doc *doc,
     while ((DOC_BYTE(doc, offset) != '>') &&
            (DOC_BYTE(doc, offset + 1) != '>')) {
 
-        res = cos_decode_object(doc, &offset, &key);
+        res = cos_parse_object(doc, &offset, &key);
         if (res != NSPDFERROR_OK) {
             /* todo free up any dictionary entries already created */
             printf("key object decode failed\n");
@@ -337,7 +339,7 @@ cos_decode_dictionary(struct pdf_doc *doc,
         }
         //printf("key: %s\n", key->u.n);
 
-        res = cos_decode_object(doc, &offset, &value);
+        res = cos_parse_object(doc, &offset, &value);
         if (res != NSPDFERROR_OK) {
             printf("Unable to decode value object in dictionary\n");
             /* todo free up any dictionary entries already created */
@@ -371,7 +373,7 @@ cos_decode_dictionary(struct pdf_doc *doc,
  * decode a list
  */
 static nspdferror
-cos_decode_list(struct pdf_doc *doc,
+cos_decode_list(struct nspdf_doc *doc,
                 uint64_t *offset_out,
                 struct cos_object **cosobj_out)
 {
@@ -406,7 +408,7 @@ cos_decode_list(struct pdf_doc *doc,
 
     while (DOC_BYTE(doc, offset) != ']') {
 
-        res = cos_decode_object(doc, &offset, &value);
+        res = cos_parse_object(doc, &offset, &value);
         if (res != NSPDFERROR_OK) {
             cos_free_object(cosobj);
             printf("Unable to decode value object in list\n");
@@ -442,7 +444,7 @@ cos_decode_list(struct pdf_doc *doc,
  * \todo deal with # symbols on pdf versions 1.2 and later
  */
 static nspdferror
-cos_decode_name(struct pdf_doc *doc,
+cos_decode_name(struct nspdf_doc *doc,
                 uint64_t *offset_out,
                 struct cos_object **cosobj_out)
 {
@@ -498,7 +500,7 @@ cos_decode_name(struct pdf_doc *doc,
  * decode a cos boolean object
  */
 static int
-cos_decode_boolean(struct pdf_doc *doc,
+cos_decode_boolean(struct nspdf_doc *doc,
                    uint64_t *offset_out,
                    struct cos_object **cosobj_out)
 {
@@ -574,7 +576,7 @@ cos_decode_boolean(struct pdf_doc *doc,
  * decode the null object.
  */
 static nspdferror
-cos_decode_null(struct pdf_doc *doc,
+cos_decode_null(struct nspdf_doc *doc,
                 uint64_t *offset_out,
                 struct cos_object **cosobj_out)
 {
@@ -640,7 +642,7 @@ cos_decode_null(struct pdf_doc *doc,
  * integer
  */
 static nspdferror
-cos_attempt_decode_reference(struct pdf_doc *doc,
+cos_attempt_decode_reference(struct nspdf_doc *doc,
                              uint64_t *offset_out,
                              struct cos_object **cosobj_out)
 {
@@ -712,7 +714,7 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
         }
         //printf("decoding\n");
 
-        res = cos_decode_object(doc, &offset, &indirect);
+        res = cos_parse_object(doc, &offset, &indirect);
         if (res != NSPDFERROR_OK) {
             cos_free_object(generation);
             return res;
@@ -752,7 +754,7 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
 
 
 /*
- * Decode input stream into an object
+ * Parse input stream into an object
  *
  * lex and parse a byte stream to generate COS objects
  *
@@ -804,7 +806,7 @@ cos_attempt_decode_reference(struct pdf_doc *doc,
  *   ;
  */
 nspdferror
-cos_decode_object(struct pdf_doc *doc,
+cos_parse_object(struct nspdf_doc *doc,
                   uint64_t *offset_out,
                   struct cos_object **cosobj_out)
 {

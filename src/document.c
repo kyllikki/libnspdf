@@ -1,3 +1,12 @@
+/*
+ * Copyright 2018 Vincent Sanders <vince@netsurf-browser.org>
+ *
+ * This file is part of libnspdf.
+ *
+ * Licensed under the MIT License,
+ *                http://www.opensource.org/licenses/mit-license.php
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -5,59 +14,27 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "nspdferror.h"
+#include <nspdf/document.h>
+
+#include "cos_parse.h"
 #include "byte_class.h"
 #include "cos_object.h"
 #include "pdf_doc.h"
 
 #define SLEN(x) (sizeof((x)) - 1)
 
-
-int
-read_whole_pdf(struct pdf_doc *doc, const char *fname)
-{
-    FILE *f;
-    off_t len;
-    uint8_t *buf;
-    size_t rd;
-
-    f = fopen(fname, "r");
-    if (f == NULL) {
-        perror("pdf open");
-        return 1;
-    }
-
-    fseek(f, 0, SEEK_END);
-    len = ftello(f);
-
-    buf = malloc(len);
-    fseek(f, 0, SEEK_SET);
-
-    rd = fread(buf, len, 1, f);
-    if (rd != 1) {
-        perror("pdf read");
-        free(buf);
-        return 1;
-    }
-
-    fclose(f);
-
-    doc->start = doc->buffer = buf;
-    doc->length = doc->buffer_length = len;
-
-    return 0;
-}
-
-
 #define STARTXREF_TOK "startxref"
-/* Number of bytes to search back from file end to find xref start token, convention says 1024 bytes */
+
+/* Number of bytes to search back from file end to find xref start token,
+ * convention says 1024 bytes
+ */
 #define STARTXREF_SEARCH_SIZE 1024
 
 
-
-
 static nspdferror
-doc_read_uint(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *result_out)
+doc_read_uint(struct nspdf_doc *doc,
+              uint64_t *offset_out,
+              uint64_t *result_out)
 {
     uint8_t c; /* current byte from source data */
     unsigned int len; /* number of decimal places in number */
@@ -90,10 +67,11 @@ doc_read_uint(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *result_out)
     return -1; /* number too long */
 }
 
+
 /**
  * finds the startxref marker at the end of input
  */
-nspdferror find_startxref(struct pdf_doc *doc, uint64_t *offset_out)
+static nspdferror find_startxref(struct nspdf_doc *doc, uint64_t *offset_out)
 {
     uint64_t offset; /* offset of characters being considered for startxref */
     uint64_t earliest; /* earliest offset to serch for startxref */
@@ -123,10 +101,14 @@ nspdferror find_startxref(struct pdf_doc *doc, uint64_t *offset_out)
     return NSPDFERROR_SYNTAX;
 }
 
+
 /**
  * decodes a startxref field
  */
-nspdferror decode_startxref(struct pdf_doc *doc, uint64_t *offset_out, uint64_t *start_xref_out)
+static nspdferror
+decode_startxref(struct nspdf_doc *doc,
+                 uint64_t *offset_out,
+                 uint64_t *start_xref_out)
 {
     uint64_t offset; /* offset of characters being considered for startxref */
     uint64_t start_xref;
@@ -181,7 +163,7 @@ nspdferror decode_startxref(struct pdf_doc *doc, uint64_t *offset_out, uint64_t 
 /**
  * finds the next trailer
  */
-nspdferror find_trailer(struct pdf_doc *doc, uint64_t *offset_out)
+static nspdferror find_trailer(struct nspdf_doc *doc, uint64_t *offset_out)
 {
     uint64_t offset; /* offset of characters being considered for trailer */
 
@@ -200,33 +182,9 @@ nspdferror find_trailer(struct pdf_doc *doc, uint64_t *offset_out)
     return NSPDFERROR_SYNTAX;
 }
 
-/**
- * find the PDF comment marker to identify the start of the document
- */
-int check_header(struct pdf_doc *doc)
-{
-    uint64_t offset; /* offset of characters being considered for startxref */
 
-    for (offset = 0; offset < 1024; offset++) {
-        if ((DOC_BYTE(doc, offset) == '%') &&
-            (DOC_BYTE(doc, offset + 1) == 'P') &&
-            (DOC_BYTE(doc, offset + 2) == 'D') &&
-            (DOC_BYTE(doc, offset + 3) == 'F') &&
-            (DOC_BYTE(doc, offset + 4) == '-') &&
-            (DOC_BYTE(doc, offset + 5) == '1') &&
-            (DOC_BYTE(doc, offset + 6) == '.')) {
-            doc->start = doc->buffer + offset;
-            doc->length -= offset;
-            /* read number for minor */
-            return 0;
-        }
-    }
-    return -1;
-}
-
-
-nspdferror
-decode_trailer(struct pdf_doc *doc,
+static nspdferror
+decode_trailer(struct nspdf_doc *doc,
                uint64_t *offset_out,
                struct cos_object **trailer_out)
 {
@@ -249,7 +207,7 @@ decode_trailer(struct pdf_doc *doc,
     offset += 7;
     doc_skip_ws(doc, &offset);
 
-    res = cos_decode_object(doc, &offset, &trailer);
+    res = cos_parse_object(doc, &offset, &trailer);
     if (res != 0) {
         return res;
     }
@@ -265,8 +223,9 @@ decode_trailer(struct pdf_doc *doc,
     return NSPDFERROR_OK;
 }
 
-nspdferror
-decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
+
+static nspdferror
+decode_xref(struct nspdf_doc *doc, uint64_t *offset_out)
 {
     uint64_t offset;
     nspdferror res;
@@ -359,7 +318,8 @@ decode_xref(struct pdf_doc *doc, uint64_t *offset_out)
 /**
  * recursively parse trailers and xref tables
  */
-nspdferror decode_xref_trailer(struct pdf_doc *doc, uint64_t xref_offset)
+static nspdferror
+decode_xref_trailer(struct nspdf_doc *doc, uint64_t xref_offset)
 {
     nspdferror res;
     uint64_t offset; /* the current data offset */
@@ -455,6 +415,7 @@ decode_xref_trailer_failed:
     return res;
 }
 
+
 /**
  * decode non-linear pdf trailer data
  *
@@ -477,7 +438,7 @@ decode_xref_trailer_failed:
  * find the subsequent trailer.
  *
  */
-nspdferror decode_trailers(struct pdf_doc *doc)
+static nspdferror decode_trailers(struct nspdf_doc *doc)
 {
     nspdferror res;
     uint64_t offset; /* the current data offset */
@@ -499,11 +460,12 @@ nspdferror decode_trailers(struct pdf_doc *doc)
     return decode_xref_trailer(doc, startxref);
 }
 
+
 /**
  * recursively decodes a page tree
  */
-nspdferror
-decode_page_tree(struct pdf_doc *doc,
+static nspdferror
+decode_page_tree(struct nspdf_doc *doc,
                  struct cos_object *page_tree_node,
                  unsigned int *page_index)
 {
@@ -594,12 +556,14 @@ decode_page_tree(struct pdf_doc *doc,
             return res;
         }
 
+        /*
         printf("page index:%d page:%p resources:%p mediabox:%p contents:%p\n",
                *page_index,
                page,
                page->resources,
                page->mediabox,
                page->contents);
+        */
 
         (*page_index)++;
         res = NSPDFERROR_OK;
@@ -609,7 +573,8 @@ decode_page_tree(struct pdf_doc *doc,
     return res;
 }
 
-nspdferror decode_catalog(struct pdf_doc *doc)
+
+static nspdferror decode_catalog(struct nspdf_doc *doc)
 {
     nspdferror res;
     struct cos_object *catalog;
@@ -645,38 +610,63 @@ nspdferror decode_catalog(struct pdf_doc *doc)
     return res;
 }
 
-nspdferror new_pdf_doc(struct pdf_doc **doc_out)
+/* exported interface documented in nspdf/document.h */
+nspdferror nspdf_document_create(struct nspdf_doc **doc_out)
 {
-    struct pdf_doc *doc;
-    doc = calloc(1, sizeof(struct pdf_doc));
+    struct nspdf_doc *doc;
+    doc = calloc(1, sizeof(struct nspdf_doc));
     if (doc == NULL) {
         return NSPDFERROR_NOMEM;
     }
+
     *doc_out = doc;
+
     return NSPDFERROR_OK;
 }
 
-int main(int argc, char **argv)
+/* exported interface documented in nspdf/document.h */
+nspdferror nspdf_document_destroy(struct nspdf_doc *doc)
 {
-    struct pdf_doc *doc;
-    int res;
+    free(doc);
 
-    if (argc < 2) {
-        fprintf(stderr, "Usage %s <filename>\n", argv[0]);
-        return 1;
-    }
+    return NSPDFERROR_OK;
+}
 
-    res = new_pdf_doc(&doc);
-    if (res != NSPDFERROR_OK) {
-        printf("failed to read file\n");
-        return res;
-    }
 
-    res = read_whole_pdf(doc, argv[1]);
-    if (res != 0) {
-        printf("failed to read file\n");
-        return res;
+/**
+ * find the PDF comment marker to identify the start of the document
+ */
+static nspdferror check_header(struct nspdf_doc *doc)
+{
+    uint64_t offset; /* offset of characters being considered for header */
+    for (offset = 0; offset < 1024; offset++) {
+        if ((DOC_BYTE(doc, offset) == '%') &&
+            (DOC_BYTE(doc, offset + 1) == 'P') &&
+            (DOC_BYTE(doc, offset + 2) == 'D') &&
+            (DOC_BYTE(doc, offset + 3) == 'F') &&
+            (DOC_BYTE(doc, offset + 4) == '-') &&
+            (DOC_BYTE(doc, offset + 5) == '1') &&
+            (DOC_BYTE(doc, offset + 6) == '.')) {
+            doc->start += offset;
+            doc->length -= offset;
+
+            /* \todo read number for minor */
+            return NSPDFERROR_OK;
+        }
     }
+    return NSPDFERROR_NOTFOUND;
+}
+
+/* exported interface documented in nspdf/document.h */
+nspdferror
+nspdf_document_parse(struct nspdf_doc *doc,
+                     const uint8_t *buffer,
+                     uint64_t buffer_length)
+{
+    nspdferror res;
+
+    doc->start = buffer;
+    doc->length = buffer_length;
 
     res = check_header(doc);
     if (res != 0) {
@@ -696,5 +686,5 @@ int main(int argc, char **argv)
         return res;
     }
 
-    return 0;
+    return res;
 }

@@ -12,7 +12,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "nspdferror.h"
+#include <nspdf/errors.h>
+
+#include "cos_parse.h"
 #include "byte_class.h"
 #include "cos_object.h"
 #include "pdf_doc.h"
@@ -20,7 +22,7 @@
 /**
  * move offset to next non whitespace byte
  */
-nspdferror doc_skip_ws(struct pdf_doc *doc, uint64_t *offset)
+nspdferror doc_skip_ws(struct nspdf_doc *doc, uint64_t *offset)
 {
     uint8_t c;
     /* TODO sort out keeping offset in range */
@@ -43,7 +45,7 @@ nspdferror doc_skip_ws(struct pdf_doc *doc, uint64_t *offset)
 /**
  * move offset to next non eol byte
  */
-nspdferror doc_skip_eol(struct pdf_doc *doc, uint64_t *offset)
+nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset)
 {
     uint8_t c;
     /* TODO sort out keeping offset in range */
@@ -60,7 +62,7 @@ static struct cos_object cos_null_obj = {
 };
 
 nspdferror
-xref_get_referenced(struct pdf_doc *doc, struct cos_object **cobj_out)
+xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out)
 {
     nspdferror res;
     struct cos_object *cobj;
@@ -90,7 +92,7 @@ xref_get_referenced(struct pdf_doc *doc, struct cos_object **cobj_out)
     if (entry->object == NULL) {
         /* indirect object has never been decoded */
         offset = entry->offset;
-        res = cos_decode_object(doc, &offset, &indirect);
+        res = cos_parse_object(doc, &offset, &indirect);
         if (res != NSPDFERROR_OK) {
             printf("failed to decode indirect object\n");
             return res;

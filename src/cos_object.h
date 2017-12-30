@@ -1,4 +1,4 @@
-struct pdf_doc;
+struct nspdf_doc;
 
 enum cos_type {
     COS_TYPE_NULL,
@@ -83,13 +83,6 @@ struct cos_object {
     } u;
 };
 
-/**
- * Decode input stream into an object
- *
- * lex and parse a byte stream to generate a COS object.
- */
-nspdferror cos_decode_object(struct pdf_doc *doc, uint64_t *offset_out, struct cos_object **cosobj_out);
-
 nspdferror cos_free_object(struct cos_object *cos_obj);
 
 /**
@@ -117,35 +110,35 @@ nspdferror cos_extract_dictionary_value(struct cos_object *dict, const char *key
  *         NSPDFERROR_TYPE if the object passed in \p dict is not a dictionary.
  *         NSPDFERROR_NOTFOUND if the key is not present in the dictionary.
  */
-nspdferror cos_get_dictionary_value(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+nspdferror cos_get_dictionary_value(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
 
-nspdferror cos_get_dictionary_int(struct pdf_doc *doc, struct cos_object *dict, const char *key, int64_t *value_out);
+nspdferror cos_get_dictionary_int(struct nspdf_doc *doc, struct cos_object *dict, const char *key, int64_t *value_out);
 
 
-nspdferror cos_get_dictionary_name(struct pdf_doc *doc, struct cos_object *dict, const char *key, const char **value_out);
+nspdferror cos_get_dictionary_name(struct nspdf_doc *doc, struct cos_object *dict, const char *key, const char **value_out);
 
-nspdferror cos_get_dictionary_dictionary(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+nspdferror cos_get_dictionary_dictionary(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
-nspdferror cos_heritable_dictionary_dictionary(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+nspdferror cos_heritable_dictionary_dictionary(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
-nspdferror cos_get_dictionary_array(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+nspdferror cos_get_dictionary_array(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
-nspdferror cos_heritable_dictionary_array(struct pdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
-
-
-nspdferror cos_get_int(struct pdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
+nspdferror cos_heritable_dictionary_array(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
 
-nspdferror cos_get_name(struct pdf_doc *doc, struct cos_object *cobj, const char **value_out);
+nspdferror cos_get_int(struct nspdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
 
 
-nspdferror cos_get_dictionary(struct pdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
+nspdferror cos_get_name(struct nspdf_doc *doc, struct cos_object *cobj, const char **value_out);
 
-nspdferror cos_get_array(struct pdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
 
-nspdferror cos_get_array_size(struct pdf_doc *doc, struct cos_object *cobj, unsigned int *size_out);
+nspdferror cos_get_dictionary(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
 
-nspdferror cos_get_array_value(struct pdf_doc *doc, struct cos_object *array, unsigned int index, struct cos_object **value_out);
+nspdferror cos_get_array(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
 
-nspdferror cos_get_array_dictionary(struct pdf_doc *doc, struct cos_object *arrau, unsigned int index, struct cos_object **value_out);
+nspdferror cos_get_array_size(struct nspdf_doc *doc, struct cos_object *cobj, unsigned int *size_out);
+
+nspdferror cos_get_array_value(struct nspdf_doc *doc, struct cos_object *array, unsigned int index, struct cos_object **value_out);
+
+nspdferror cos_get_array_dictionary(struct nspdf_doc *doc, struct cos_object *arrau, unsigned int index, struct cos_object **value_out);

@@ -18,11 +18,9 @@ struct page_table_entry {
 };
 
 /** pdf document */
-struct pdf_doc {
-    uint8_t *buffer;
-    uint64_t buffer_length;
+struct nspdf_doc {
 
-    uint8_t *start; /* start of pdf document in input stream */
+    const uint8_t *start; /* start of pdf document in input stream */
     uint64_t length;
 
     int major;
@@ -47,7 +45,7 @@ struct pdf_doc {
 /* byte data acessory, allows for more complex buffer handling in future */
 #define DOC_BYTE(doc, offset) (doc->start[(offset)])
 
-nspdferror doc_skip_ws(struct pdf_doc *doc, uint64_t *offset);
-nspdferror doc_skip_eol(struct pdf_doc *doc, uint64_t *offset);
+nspdferror doc_skip_ws(struct nspdf_doc *doc, uint64_t *offset);
+nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset);
 
-nspdferror xref_get_referenced(struct pdf_doc *doc, struct cos_object **cobj_out);
+nspdferror xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out);

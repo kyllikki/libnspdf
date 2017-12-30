@@ -14,7 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "nspdferror.h"
+#include <nspdf/errors.h>
+
 #include "cos_object.h"
 #include "pdf_doc.h"
 
@@ -110,7 +111,7 @@ cos_extract_dictionary_value(struct cos_object *dict,
  * get a value for a key from a dictionary
  */
 nspdferror
-cos_get_dictionary_value(struct pdf_doc *doc,
+cos_get_dictionary_value(struct nspdf_doc *doc,
                          struct cos_object *dict,
                          const char *key,
                          struct cos_object **value_out)
@@ -140,7 +141,7 @@ cos_get_dictionary_value(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_dictionary_int(struct pdf_doc *doc,
+cos_get_dictionary_int(struct nspdf_doc *doc,
                        struct cos_object *dict,
                        const char *key,
                        int64_t *value_out)
@@ -156,7 +157,7 @@ cos_get_dictionary_int(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_dictionary_name(struct pdf_doc *doc,
+cos_get_dictionary_name(struct nspdf_doc *doc,
                         struct cos_object *dict,
                         const char *key,
                         const char **value_out)
@@ -172,7 +173,7 @@ cos_get_dictionary_name(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_dictionary_dictionary(struct pdf_doc *doc,
+cos_get_dictionary_dictionary(struct nspdf_doc *doc,
                         struct cos_object *dict,
                         const char *key,
                         struct cos_object **value_out)
@@ -188,7 +189,7 @@ cos_get_dictionary_dictionary(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_heritable_dictionary_dictionary(struct pdf_doc *doc,
+cos_heritable_dictionary_dictionary(struct nspdf_doc *doc,
                         struct cos_object *dict,
                         const char *key,
                         struct cos_object **value_out)
@@ -206,7 +207,7 @@ cos_heritable_dictionary_dictionary(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_dictionary_array(struct pdf_doc *doc,
+cos_get_dictionary_array(struct nspdf_doc *doc,
                         struct cos_object *dict,
                         const char *key,
                         struct cos_object **value_out)
@@ -222,7 +223,7 @@ cos_get_dictionary_array(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_heritable_dictionary_array(struct pdf_doc *doc,
+cos_heritable_dictionary_array(struct nspdf_doc *doc,
                         struct cos_object *dict,
                         const char *key,
                         struct cos_object **value_out)
@@ -241,7 +242,7 @@ cos_heritable_dictionary_array(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_int(struct pdf_doc *doc,
+cos_get_int(struct nspdf_doc *doc,
             struct cos_object *cobj,
             int64_t *value_out)
 {
@@ -259,7 +260,7 @@ cos_get_int(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_name(struct pdf_doc *doc,
+cos_get_name(struct nspdf_doc *doc,
             struct cos_object *cobj,
             const char **value_out)
 {
@@ -279,7 +280,7 @@ cos_get_name(struct pdf_doc *doc,
 
 
 nspdferror
-cos_get_dictionary(struct pdf_doc *doc,
+cos_get_dictionary(struct nspdf_doc *doc,
                    struct cos_object *cobj,
                    struct cos_object **value_out)
 {
@@ -297,7 +298,7 @@ cos_get_dictionary(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_array(struct pdf_doc *doc,
+cos_get_array(struct nspdf_doc *doc,
                    struct cos_object *cobj,
                    struct cos_object **value_out)
 {
@@ -318,7 +319,7 @@ cos_get_array(struct pdf_doc *doc,
  * get a value for a key from a dictionary
  */
 nspdferror
-cos_get_array_value(struct pdf_doc *doc,
+cos_get_array_value(struct nspdf_doc *doc,
                     struct cos_object *array,
                     unsigned int index,
                     struct cos_object **value_out)
@@ -350,7 +351,7 @@ cos_get_array_value(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_array_dictionary(struct pdf_doc *doc,
+cos_get_array_dictionary(struct nspdf_doc *doc,
                         struct cos_object *array,
                         unsigned int index,
                         struct cos_object **value_out)
@@ -366,7 +367,7 @@ cos_get_array_dictionary(struct pdf_doc *doc,
 }
 
 nspdferror
-cos_get_array_size(struct pdf_doc *doc,
+cos_get_array_size(struct nspdf_doc *doc,
                    struct cos_object *cobj,
                    unsigned int *size_out)
 {
