@@ -14,7 +14,10 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include <libwapcaplet/libwapcaplet.h>
+
 #include <nspdf/document.h>
+#include <nspdf/meta.h>
 
 static nspdferror
 read_whole_pdf(const char *fname, uint8_t **buffer, uint64_t *buffer_length)
@@ -58,6 +61,7 @@ int main(int argc, char **argv)
     uint64_t buffer_length;
     struct nspdf_doc *doc;
     nspdferror res;
+    struct lwc_string_s *title;
 
     if (argc < 2) {
         fprintf(stderr, "Usage %s <filename>\n", argv[0]);
@@ -80,6 +84,11 @@ int main(int argc, char **argv)
     if (res != NSPDFERROR_OK) {
         printf("document parse failed (%d)\n", res);
         return res;
+    }
+
+    res = nspdf_get_title(doc, &title);
+    if (res == NSPDFERROR_OK) {
+        printf("Title:%s\n", lwc_string_data(title));
     }
 
     res = nspdf_document_destroy(doc);

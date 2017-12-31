@@ -85,6 +85,7 @@ struct cos_object {
 
 nspdferror cos_free_object(struct cos_object *cos_obj);
 
+
 /**
  * extract a value for a key from a dictionary
  *
@@ -99,6 +100,7 @@ nspdferror cos_free_object(struct cos_object *cos_obj);
  *         NSPDFERROR_NOTFOUND if the key is not present in the dictionary.
  */
 nspdferror cos_extract_dictionary_value(struct cos_object *dict, const char *key, struct cos_object **value_out);
+
 
 /**
  * get a value for a key from a dictionary
@@ -118,27 +120,104 @@ nspdferror cos_get_dictionary_int(struct nspdf_doc *doc, struct cos_object *dict
 
 nspdferror cos_get_dictionary_name(struct nspdf_doc *doc, struct cos_object *dict, const char *key, const char **value_out);
 
+
+nspdferror cos_get_dictionary_string(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_string **string_out);
+
+
 nspdferror cos_get_dictionary_dictionary(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+
 
 nspdferror cos_heritable_dictionary_dictionary(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
+
 nspdferror cos_get_dictionary_array(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
+
 
 nspdferror cos_heritable_dictionary_array(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
 
-nspdferror cos_get_int(struct nspdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
-
-
-nspdferror cos_get_name(struct nspdf_doc *doc, struct cos_object *cobj, const char **value_out);
-
-
-nspdferror cos_get_dictionary(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
-
-nspdferror cos_get_array(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
-
 nspdferror cos_get_array_size(struct nspdf_doc *doc, struct cos_object *cobj, unsigned int *size_out);
+
 
 nspdferror cos_get_array_value(struct nspdf_doc *doc, struct cos_object *array, unsigned int index, struct cos_object **value_out);
 
+
 nspdferror cos_get_array_dictionary(struct nspdf_doc *doc, struct cos_object *arrau, unsigned int index, struct cos_object **value_out);
+
+/**
+ * get the integer value of a cos object.
+ *
+ * Get the value from a cos object, if the object is an object reference it
+ *  will be dereferenced first. The dereferencing will parse any previously
+ *  unreferenced indirect objects as required.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object of integer type.
+ * \param value_out The result value.
+ * \return NSERROR_OK and \p value_out updated,
+ *         NSERROR_TYPE if the \p cobj is not an integer
+ */
+nspdferror cos_get_int(struct nspdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
+
+/**
+ * get the name value of a cos object.
+ *
+ * Get the value from a cos object, if the object is an object reference it
+ *  will be dereferenced first. The dereferencing will parse any previously
+ *  unreferenced indirect objects as required.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object of name type.
+ * \param name_out The result value.
+ * \return NSERROR_OK and \p value_out updated,
+ *         NSERROR_TYPE if the \p cobj is not a name
+ */
+nspdferror cos_get_name(struct nspdf_doc *doc, struct cos_object *cobj, const char **name_out);
+
+
+/**
+ * get the string value of a cos object.
+ *
+ * Get the value from a cos object, if the object is an object reference it
+ *  will be dereferenced first. The dereferencing will parse any previously
+ *  unreferenced indirect objects as required.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object of string type.
+ * \param string_out The result value.
+ * \return NSERROR_OK and \p value_out updated,
+ *         NSERROR_TYPE if the \p cobj is not a string
+ */
+nspdferror cos_get_string(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_string **string_out);
+
+
+/**
+ * get the dictionary value of a cos object.
+ *
+ * Get the value from a cos object, if the object is an object reference it
+ *  will be dereferenced first. The dereferencing will parse any previously
+ *  unreferenced indirect objects as required.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object of dictionary type.
+ * \param value_out The result value.
+ * \return NSERROR_OK and \p value_out updated,
+ *         NSERROR_TYPE if the \p cobj is not a dictionary
+ */
+nspdferror cos_get_dictionary(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
+
+
+/**
+ * get the array value of a cos object.
+ *
+ * Get the value from a cos object, if the object is an object reference it
+ *  will be dereferenced first. The dereferencing will parse any previously
+ *  unreferenced indirect objects as required.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object of array type.
+ * \param value_out The result value.
+ * \return NSERROR_OK and \p value_out updated,
+ *         NSERROR_TYPE if the \p cobj is not a array
+ */
+nspdferror cos_get_array(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);

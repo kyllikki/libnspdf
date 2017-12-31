@@ -15,6 +15,7 @@
 #ifndef NSPDF_DOCUMENT_H_
 #define NSPDF_DOCUMENT_H_
 
+#include <stdint.h>
 #include <nspdf/errors.h>
 
 struct nspdf_doc;

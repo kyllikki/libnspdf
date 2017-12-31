@@ -419,9 +419,9 @@ decode_xref_trailer_failed:
 /**
  * decode non-linear pdf trailer data
  *
- * PDF have a structure nominally defined as header, body, cross reference table
- * and trailer. The body, cross reference table and trailer sections may be
- * repeated in a scheme known as "incremental updates"
+ * PDF have a structure nominally defined as header, body, cross reference
+ * table and trailer. The body, cross reference table and trailer sections may
+ * be repeated in a scheme known as "incremental updates"
  *
  * The strategy used here is to locate the end of the last trailer block which
  * contains a startxref token followed by a byte offset into the file of the

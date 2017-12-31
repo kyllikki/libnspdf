@@ -173,6 +173,22 @@ cos_get_dictionary_name(struct nspdf_doc *doc,
 }
 
 nspdferror
+cos_get_dictionary_string(struct nspdf_doc *doc,
+                        struct cos_object *dict,
+                        const char *key,
+                        struct cos_string **string_out)
+{
+    nspdferror res;
+    struct cos_object *dict_value;
+
+    res = cos_get_dictionary_value(doc, dict, key, &dict_value);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    return cos_get_string(doc, dict_value, string_out);
+}
+
+nspdferror
 cos_get_dictionary_dictionary(struct nspdf_doc *doc,
                         struct cos_object *dict,
                         const char *key,
@@ -278,7 +294,6 @@ cos_get_name(struct nspdf_doc *doc,
 }
 
 
-
 nspdferror
 cos_get_dictionary(struct nspdf_doc *doc,
                    struct cos_object *cobj,
@@ -297,6 +312,7 @@ cos_get_dictionary(struct nspdf_doc *doc,
     return res;
 }
 
+
 nspdferror
 cos_get_array(struct nspdf_doc *doc,
                    struct cos_object *cobj,
@@ -314,6 +330,26 @@ cos_get_array(struct nspdf_doc *doc,
     }
     return res;
 }
+
+
+nspdferror
+cos_get_string(struct nspdf_doc *doc,
+               struct cos_object *cobj,
+               struct cos_string **string_out)
+{
+    nspdferror res;
+
+    res = xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type != COS_TYPE_STRING) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            *string_out = cobj->u.s;
+        }
+    }
+    return res;
+}
+
 
 /*
  * get a value for a key from a dictionary

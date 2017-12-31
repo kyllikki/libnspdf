@@ -34,6 +34,17 @@ else
 endif
 CFLAGS := $(CFLAGS) -D_POSIX_C_SOURCE=200809L
 
+# wapcaplet
+ifneq ($(findstring clean,$(MAKECMDGOALS)),clean)
+  ifneq ($(PKGCONFIG),)
+    CFLAGS := $(CFLAGS) $(shell $(PKGCONFIG) libwapcaplet --cflags)
+    LDFLAGS := $(LDFLAGS) $(shell $(PKGCONFIG) libwapcaplet --libs)
+  else
+    CFLAGS := $(CFLAGS) -I$(PREFIX)/include
+    LDFLAGS := $(LDFLAGS) -lwapcaplet
+  endif
+endif
+
 REQUIRED_LIBS := nspdf
 
 TESTCFLAGS := -g -O2
@@ -42,7 +53,9 @@ TESTLDFLAGS := -l$(COMPONENT) $(TESTLDFLAGS)
 include $(NSBUILD)/Makefile.top
 
 # Extra installation rules
-I := /$(INCLUDEDIR)
-INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf.h
+I := /$(INCLUDEDIR)/nspdf
+INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf/document.h
+INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf/meta.h
+INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf/errors.h
 INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR)/pkgconfig:lib$(COMPONENT).pc.in
 INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR):$(OUTPUT)
