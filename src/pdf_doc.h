@@ -49,3 +49,5 @@ nspdferror doc_skip_ws(struct nspdf_doc *doc, uint64_t *offset);
 nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset);
 
 nspdferror xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out);
+
+nspdferror nspdf__decode_page_tree(struct nspdf_doc *doc, struct cos_object *page_tree_node, unsigned int *page_index);

@@ -18,6 +18,7 @@
 
 #include <nspdf/document.h>
 #include <nspdf/meta.h>
+#include <nspdf/page.h>
 
 static nspdferror
 read_whole_pdf(const char *fname, uint8_t **buffer, uint64_t *buffer_length)
@@ -62,6 +63,7 @@ int main(int argc, char **argv)
     struct nspdf_doc *doc;
     nspdferror res;
     struct lwc_string_s *title;
+    unsigned int page_count;
 
     if (argc < 2) {
         fprintf(stderr, "Usage %s <filename>\n", argv[0]);
@@ -90,6 +92,14 @@ int main(int argc, char **argv)
     if (res == NSPDFERROR_OK) {
         printf("Title:%s\n", lwc_string_data(title));
     }
+
+    res = nspdf_count_pages(doc, &page_count);
+    if (res != NSPDFERROR_OK) {
+        printf("page count failed (%d)\n", res);
+        return res;
+    }
+    printf("Pages:%d\n", page_count);
+
 
     res = nspdf_document_destroy(doc);
     if (res != NSPDFERROR_OK) {

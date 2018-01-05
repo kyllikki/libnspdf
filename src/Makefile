@@ -1,3 +1,3 @@
-DIR_SOURCES := document.c byte_class.c cos_parse.c cos_object.c pdf_doc.c meta.c
+DIR_SOURCES := document.c byte_class.c cos_parse.c cos_object.c pdf_doc.c meta.c page.c
 
 include $(NSBUILD)/Makefile.subdir
