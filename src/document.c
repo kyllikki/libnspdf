@@ -31,43 +31,6 @@
 #define STARTXREF_SEARCH_SIZE 1024
 
 
-static nspdferror
-doc_read_uint(struct nspdf_doc *doc,
-              uint64_t *offset_out,
-              uint64_t *result_out)
-{
-    uint8_t c; /* current byte from source data */
-    unsigned int len; /* number of decimal places in number */
-    uint8_t num[21]; /* temporary buffer for decimal values */
-    uint64_t offset; /* current offset of source data */
-    uint64_t result=0; /* parsed result */
-    uint64_t tens;
-
-    offset = *offset_out;
-
-    for (len = 0; len < sizeof(num); len++) {
-        c = DOC_BYTE(doc, offset);
-        if ((bclass[c] & BC_DCML) != BC_DCML) {
-            if (len == 0) {
-                return -2; /* parse error no decimals in input */
-            }
-            /* sum value from each place */
-            for (tens = 1; len > 0; tens = tens * 10, len--) {
-                result += (num[len - 1] * tens);
-            }
-
-            *offset_out = offset;
-            *result_out = result;
-
-            return NSPDFERROR_OK;
-        }
-        num[len] = c - '0';
-        offset++;
-    }
-    return -1; /* number too long */
-}
-
-
 /**
  * finds the startxref marker at the end of input
  */
@@ -224,95 +187,6 @@ decode_trailer(struct nspdf_doc *doc,
 }
 
 
-static nspdferror
-decode_xref(struct nspdf_doc *doc, uint64_t *offset_out)
-{
-    uint64_t offset;
-    nspdferror res;
-    uint64_t objnumber; /* current object number */
-    uint64_t objcount;
-
-    offset = *offset_out;
-
-    /* xref object header */
-    if ((DOC_BYTE(doc, offset    ) != 'x') &&
-        (DOC_BYTE(doc, offset + 1) != 'r') &&
-        (DOC_BYTE(doc, offset + 2) != 'e') &&
-        (DOC_BYTE(doc, offset + 3) != 'f')) {
-        return NSPDFERROR_SYNTAX;
-    }
-    offset += 4;
-
-    res = doc_skip_ws(doc, &offset);
-    if (res != NSPDFERROR_OK) {
-        return res;
-    }
-
-    /* subsections
-     * <first object number> <number of references in subsection>
-     */
-    res = doc_read_uint(doc, &offset, &objnumber);
-    while (res == NSPDFERROR_OK) {
-        uint64_t lastobj;
-        res = doc_skip_ws(doc, &offset);
-        if (res != NSPDFERROR_OK) {
-            return res;
-        }
-
-        res = doc_read_uint(doc, &offset, &objcount);
-        if (res != NSPDFERROR_OK) {
-            return res;
-        }
-
-        res = doc_skip_ws(doc, &offset);
-        if (res != NSPDFERROR_OK) {
-            return res;
-        }
-
-        //printf("decoding subsection %lld %lld\n", objnumber, objcount);
-
-        lastobj = objnumber + objcount;
-        for (; objnumber < lastobj ; objnumber++) {
-            /* each entry is a fixed format */
-            uint64_t objindex;
-            uint64_t objgeneration;
-
-            /* object index */
-            res = doc_read_uint(doc, &offset, &objindex);
-            if (res != NSPDFERROR_OK) {
-                return res;
-            }
-            offset++; /* skip space */
-
-            res = doc_read_uint(doc, &offset, &objgeneration);
-            if (res != NSPDFERROR_OK) {
-                return res;
-            }
-            offset++; /* skip space */
-
-            if ((DOC_BYTE(doc, offset++) == 'n')) {
-                if (objnumber < doc->xref_size) {
-                    struct xref_table_entry *indobj;
-                    indobj = doc->xref_table + objnumber;
-
-                    indobj->ref.id = objnumber;
-                    indobj->ref.generation = objgeneration;
-                    indobj->offset = objindex;
-
-                    //printf("xref %lld %lld -> %lld\n", objnumber, objgeneration, objindex);
-                } else {
-                    printf("index out of bounds\n");
-                }
-            }
-
-            offset += 2; /* skip EOL */
-        }
-
-        res = doc_read_uint(doc, &offset, &objnumber);
-    }
-
-    return NSPDFERROR_OK;
-}
 
 
 /**
@@ -367,12 +241,10 @@ decode_xref_trailer(struct nspdf_doc *doc, uint64_t xref_offset)
             goto decode_xref_trailer_failed;
         }
 
-        doc->xref_table = calloc(size, sizeof(struct xref_table_entry));
-        if (doc->xref_table == NULL) {
-            res = NSPDFERROR_NOMEM;
+        res = nspdf__xref_allocate(doc, size);
+        if (res != NSPDFERROR_OK) {
             goto decode_xref_trailer_failed;
         }
-        doc->xref_size = size;
 
         res = cos_extract_dictionary_value(trailer, "Encrypt", &doc->encrypt);
         if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
@@ -403,7 +275,7 @@ decode_xref_trailer(struct nspdf_doc *doc, uint64_t xref_offset)
     offset = xref_offset;
     /** @todo deal with XrefStm (number) in trailer */
 
-    res = decode_xref(doc, &offset);
+    res = nspdf__xref_parse(doc, &offset);
     if (res != NSPDFERROR_OK) {
         printf("failed to decode xref table\n");
         goto decode_xref_trailer_failed;

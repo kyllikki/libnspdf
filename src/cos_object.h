@@ -50,6 +50,12 @@ struct cos_reference {
     uint64_t generation;
 };
 
+struct cos_stream {
+    uint8_t *data;
+    size_t length;
+};
+
+
 struct cos_object {
     int type;
     union {
@@ -69,7 +75,7 @@ struct cos_object {
         struct cos_string *s;
 
         /** stream data */
-        uint8_t *stream;
+        struct cos_stream *stream;
 
         /* dictionary */
         struct cos_dictionary_entry *dictionary;
@@ -221,3 +227,18 @@ nspdferror cos_get_dictionary(struct nspdf_doc *doc, struct cos_object *cobj, st
  *         NSERROR_TYPE if the \p cobj is not a array
  */
 nspdferror cos_get_array(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **value_out);
+
+/**
+ * get the stream value of a cos object.
+ *
+ * Get the value from a cos object, if the object is an object reference it
+ *  will be dereferenced first. The dereferencing will parse any previously
+ *  unreferenced indirect objects as required.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object of stream type.
+ * \param stream_out The result value.
+ * \return NSERROR_OK and \p stream_out updated,
+ *         NSERROR_TYPE if the \p cobj is not a array
+ */
+nspdferror cos_get_stream(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_stream **stream_out);

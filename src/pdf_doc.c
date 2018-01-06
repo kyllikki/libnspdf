@@ -57,51 +57,39 @@ nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset)
     return NSPDFERROR_OK;
 }
 
-static struct cos_object cos_null_obj = {
-    .type = COS_TYPE_NULL,
-};
 
 nspdferror
-xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out)
+doc_read_uint(struct nspdf_doc *doc,
+              uint64_t *offset_out,
+              uint64_t *result_out)
 {
-    nspdferror res;
-    struct cos_object *cobj;
-    struct cos_object *indirect;
-    uint64_t offset;
-    struct xref_table_entry *entry;
+    uint8_t c; /* current byte from source data */
+    unsigned int len; /* number of decimal places in number */
+    uint8_t num[21]; /* temporary buffer for decimal values */
+    uint64_t offset; /* current offset of source data */
+    uint64_t result=0; /* parsed result */
+    uint64_t tens;
 
-    cobj = *cobj_out;
+    offset = *offset_out;
 
-    if (cobj->type != COS_TYPE_REFERENCE) {
-        /* not passed a reference object so just return what was passed */
-        return NSPDFERROR_OK;
-    }
+    for (len = 0; len < sizeof(num); len++) {
+        c = DOC_BYTE(doc, offset);
+        if ((bclass[c] & BC_DCML) != BC_DCML) {
+            if (len == 0) {
+                return -2; /* parse error no decimals in input */
+            }
+            /* sum value from each place */
+            for (tens = 1; len > 0; tens = tens * 10, len--) {
+                result += (num[len - 1] * tens);
+            }
 
-    entry = doc->xref_table + cobj->u.reference->id;
+            *offset_out = offset;
+            *result_out = result;
 
-    /* check if referenced object is in range and exists. return null object if
-     * not
-     */
-    if ((cobj->u.reference->id >= doc->xref_size) ||
-        (cobj->u.reference->id == 0) ||
-        (entry->ref.id == 0)) {
-        *cobj_out = &cos_null_obj;
-        return NSPDFERROR_OK;
-    }
-
-    if (entry->object == NULL) {
-        /* indirect object has never been decoded */
-        offset = entry->offset;
-        res = cos_parse_object(doc, &offset, &indirect);
-        if (res != NSPDFERROR_OK) {
-            printf("failed to decode indirect object\n");
-            return res;
+            return NSPDFERROR_OK;
         }
-
-        entry->object = indirect;
+        num[len] = c - '0';
+        offset++;
     }
-
-    *cobj_out = entry->object;
-
-    return NSPDFERROR_OK;
+    return -1; /* number too long */
 }

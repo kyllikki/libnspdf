@@ -93,13 +93,18 @@ int main(int argc, char **argv)
         printf("Title:%s\n", lwc_string_data(title));
     }
 
-    res = nspdf_count_pages(doc, &page_count);
+    res = nspdf_page_count(doc, &page_count);
     if (res != NSPDFERROR_OK) {
         printf("page count failed (%d)\n", res);
         return res;
     }
     printf("Pages:%d\n", page_count);
 
+    res = nspdf_page_render(doc, 0);
+    if (res != NSPDFERROR_OK) {
+        printf("page render failed (%d)\n", res);
+        return res;
+    }
 
     res = nspdf_document_destroy(doc);
     if (res != NSPDFERROR_OK) {

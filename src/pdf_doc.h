@@ -1,21 +1,6 @@
-/** indirect object */
-struct xref_table_entry {
-    /* reference identifier */
-    struct cos_reference ref;
 
-    /** offset of object */
-    uint64_t offset;
-
-    /* indirect object if already decoded */
-    struct cos_object *object;
-};
-
-/** page entry */
-struct page_table_entry {
-    struct cos_object *resources;
-    struct cos_object *mediabox;
-    struct cos_object *contents;
-};
+struct xref_table_entry;
+struct page_table_entry;
 
 /** pdf document */
 struct nspdf_doc {
@@ -29,7 +14,7 @@ struct nspdf_doc {
     /**
      * Indirect object cross reference table
      */
-    uint64_t xref_size;
+    uint64_t xref_table_size;
     struct xref_table_entry *xref_table;
 
     struct cos_object *root;
@@ -45,9 +30,21 @@ struct nspdf_doc {
 /* byte data acessory, allows for more complex buffer handling in future */
 #define DOC_BYTE(doc, offset) (doc->start[(offset)])
 
+/* helpers in pdf_doc.h */
 nspdferror doc_skip_ws(struct nspdf_doc *doc, uint64_t *offset);
 nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset);
+nspdferror doc_read_uint(struct nspdf_doc *doc, uint64_t *offset_out, uint64_t *result_out);
 
-nspdferror xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out);
+/**
+ * parse xref from file
+ */
+nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out);
+
+/**
+ * get an object dereferencing through xref table if necessary
+ */
+nspdferror nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out);
+
+nspdferror nspdf__xref_allocate(struct nspdf_doc *doc, int64_t size);
 
 nspdferror nspdf__decode_page_tree(struct nspdf_doc *doc, struct cos_object *page_tree_node, unsigned int *page_index);

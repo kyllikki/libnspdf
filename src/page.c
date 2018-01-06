@@ -17,13 +17,20 @@
 #include "cos_object.h"
 #include "pdf_doc.h"
 
+/** page entry */
+struct page_table_entry {
+    struct cos_object *resources;
+    struct cos_object *mediabox;
+    struct cos_object *contents;
+};
+
 /**
  * recursively decodes a page tree
  */
 nspdferror
 nspdf__decode_page_tree(struct nspdf_doc *doc,
-                 struct cos_object *page_tree_node,
-                 unsigned int *page_index)
+                        struct cos_object *page_tree_node,
+                        unsigned int *page_index)
 {
     nspdferror res;
     const char *type;
@@ -131,8 +138,26 @@ nspdf__decode_page_tree(struct nspdf_doc *doc,
 
 /* exported interface documented in nspdf/page.h */
 nspdferror
-nspdf_count_pages(struct nspdf_doc *doc, unsigned int *pages_out)
+nspdf_page_count(struct nspdf_doc *doc, unsigned int *pages_out)
 {
     *pages_out = doc->page_table_size;
     return NSPDFERROR_OK;
+}
+
+/* exported interface documented in nspdf/page.h */
+nspdferror
+nspdf_page_render(struct nspdf_doc *doc, unsigned int page_number)
+{
+    struct page_table_entry *page_entry;
+    struct cos_stream *stream;
+    nspdferror res;
+
+    page_entry = doc->page_table + page_number;
+
+    res = cos_get_stream(doc, page_entry->contents, &stream);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    return res;
 }

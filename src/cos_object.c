@@ -119,7 +119,7 @@ cos_get_dictionary_value(struct nspdf_doc *doc,
     nspdferror res;
     struct cos_dictionary_entry *entry;
 
-    res = xref_get_referenced(doc, &dict);
+    res = nspdf__xref_get_referenced(doc, &dict);
     if (res == NSPDFERROR_OK) {
         if (dict->type != COS_TYPE_DICTIONARY) {
             res = NSPDFERROR_TYPE;
@@ -264,7 +264,7 @@ cos_get_int(struct nspdf_doc *doc,
 {
     nspdferror res;
 
-    res = xref_get_referenced(doc, &cobj);
+    res = nspdf__xref_get_referenced(doc, &cobj);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_INT) {
             res = NSPDFERROR_TYPE;
@@ -282,7 +282,7 @@ cos_get_name(struct nspdf_doc *doc,
 {
     nspdferror res;
 
-    res = xref_get_referenced(doc, &cobj);
+    res = nspdf__xref_get_referenced(doc, &cobj);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_NAME) {
             res = NSPDFERROR_TYPE;
@@ -301,7 +301,7 @@ cos_get_dictionary(struct nspdf_doc *doc,
 {
     nspdferror res;
 
-    res = xref_get_referenced(doc, &cobj);
+    res = nspdf__xref_get_referenced(doc, &cobj);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_DICTIONARY) {
             res = NSPDFERROR_TYPE;
@@ -320,7 +320,7 @@ cos_get_array(struct nspdf_doc *doc,
 {
     nspdferror res;
 
-    res = xref_get_referenced(doc, &cobj);
+    res = nspdf__xref_get_referenced(doc, &cobj);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_ARRAY) {
             res = NSPDFERROR_TYPE;
@@ -339,12 +339,31 @@ cos_get_string(struct nspdf_doc *doc,
 {
     nspdferror res;
 
-    res = xref_get_referenced(doc, &cobj);
+    res = nspdf__xref_get_referenced(doc, &cobj);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_STRING) {
             res = NSPDFERROR_TYPE;
         } else {
             *string_out = cobj->u.s;
+        }
+    }
+    return res;
+}
+
+
+nspdferror
+cos_get_stream(struct nspdf_doc *doc,
+               struct cos_object *cobj,
+               struct cos_stream **stream_out)
+{
+    nspdferror res;
+
+    res = nspdf__xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type != COS_TYPE_STREAM) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            *stream_out = cobj->u.stream;
         }
     }
     return res;
@@ -363,7 +382,7 @@ cos_get_array_value(struct nspdf_doc *doc,
     nspdferror res;
     struct cos_array_entry *entry;
 
-    res = xref_get_referenced(doc, &array);
+    res = nspdf__xref_get_referenced(doc, &array);
     if (res == NSPDFERROR_OK) {
         if (array->type != COS_TYPE_ARRAY) {
             res = NSPDFERROR_TYPE;
@@ -411,7 +430,7 @@ cos_get_array_size(struct nspdf_doc *doc,
     unsigned int array_size = 0;
     struct cos_array_entry *array_entry;
 
-    res = xref_get_referenced(doc, &cobj);
+    res = nspdf__xref_get_referenced(doc, &cobj);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_ARRAY) {
             res = NSPDFERROR_TYPE;
