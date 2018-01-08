@@ -1,3 +1,19 @@
+/*
+ * Copyright 2018 Vincent Sanders <vince@netsurf-browser.org>
+ *
+ * This file is part of libnspdf.
+ *
+ * Licensed under the MIT License,
+ *                http://www.opensource.org/licenses/mit-license.php
+ */
+
+/**
+ * \file
+ * NetSurf PDF library pdf document
+ */
+
+#ifndef NSPDF__PDF_DOC_H_
+#define NSPDF__PDF_DOC_H_
 
 struct xref_table_entry;
 struct page_table_entry;
@@ -48,3 +64,5 @@ nspdferror nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object *
 nspdferror nspdf__xref_allocate(struct nspdf_doc *doc, int64_t size);
 
 nspdferror nspdf__decode_page_tree(struct nspdf_doc *doc, struct cos_object *page_tree_node, unsigned int *page_index);
+
+#endif

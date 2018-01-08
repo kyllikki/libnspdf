@@ -1,3 +1,12 @@
+/*
+ * Copyright 2018 Vincent Sanders <vince@netsurf-browser.org>
+ *
+ * This file is part of libnspdf.
+ *
+ * Licensed under the MIT License,
+ *                http://www.opensource.org/licenses/mit-license.php
+ */
+
 #include <stdint.h>
 
 #include "byte_class.h"

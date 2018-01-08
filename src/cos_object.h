@@ -1,3 +1,20 @@
+/*
+ * Copyright 2018 Vincent Sanders <vince@netsurf-browser.org>
+ *
+ * This file is part of libnspdf.
+ *
+ * Licensed under the MIT License,
+ *                http://www.opensource.org/licenses/mit-license.php
+ */
+
+/**
+ * \file
+ * NetSurf PDF library COS objects
+ */
+
+#ifndef NSPDF__COS_OBJECT_H_
+#define NSPDF__COS_OBJECT_H_
+
 struct nspdf_doc;
 
 enum cos_type {
@@ -240,3 +257,6 @@ nspdferror cos_get_array(struct nspdf_doc *doc, struct cos_object *cobj, struct 
  *         NSERROR_TYPE if the \p cobj is not a array
  */
 nspdferror cos_get_stream(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_stream **stream_out);
+
+
+#endif
