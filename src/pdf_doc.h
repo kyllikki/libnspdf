@@ -46,15 +46,17 @@ struct nspdf_doc {
 /* byte data acessory, allows for more complex buffer handling in future */
 #define DOC_BYTE(doc, offset) (doc->start[(offset)])
 
-/* helpers in pdf_doc.h */
+/* helpers in pdf_doc.c */
 nspdferror doc_skip_ws(struct nspdf_doc *doc, uint64_t *offset);
 nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset);
 nspdferror doc_read_uint(struct nspdf_doc *doc, uint64_t *offset_out, uint64_t *result_out);
 
+/* cross reference table handlers */
 /**
  * parse xref from file
  */
 nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out);
+
 
 /**
  * get an object dereferencing through xref table if necessary
@@ -64,5 +66,11 @@ nspdferror nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object *
 nspdferror nspdf__xref_allocate(struct nspdf_doc *doc, int64_t size);
 
 nspdferror nspdf__decode_page_tree(struct nspdf_doc *doc, struct cos_object *page_tree_node, unsigned int *page_index);
+
+/* cos stream filters */
+nspdferror
+nspdf__cos_stream_filter(struct nspdf_doc *doc,
+                         const char *filter_name,
+                         struct cos_stream **stream_out);
 
 #endif

@@ -27,6 +27,7 @@
 /** Maximum length of cos name */
 #define NAME_MAX_LENGTH 127
 
+
 static nspdferror
 cos_string_append(struct cos_string *s, uint8_t c)
 {
@@ -717,8 +718,16 @@ cos_parse_stream(struct nspdf_doc *doc,
     /* optional filter */
     res = cos_get_dictionary_value(doc, stream_dict, "Filter", &stream_filter);
     if (res == NSPDFERROR_OK) {
-        /** \todo filter stream */
-        printf("applying filter %s\n", stream_filter->u.n);
+        const char *filter_name;
+        res = cos_get_name(doc, stream_filter, &filter_name);
+        if (res == NSPDFERROR_OK) {
+            res = nspdf__cos_stream_filter(doc, filter_name, &stream);
+            if (res != NSPDFERROR_OK) {
+                return res;
+            }
+        } else {
+            /** \todo array of filter stream */
+        }
     }
 
     /* allocate stream object */
