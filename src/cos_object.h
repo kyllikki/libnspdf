@@ -1,18 +1,18 @@
 struct nspdf_doc;
 
 enum cos_type {
-    COS_TYPE_NULL,
+    COS_TYPE_NULL, /* 0 */
     COS_TYPE_BOOL,
     COS_TYPE_INT,
     COS_TYPE_REAL,
     COS_TYPE_NAME,
     COS_TYPE_STRING,
-    COS_TYPE_ARRAY,
+    COS_TYPE_ARRAY, /* 6 */
     COS_TYPE_DICTIONARY,
     COS_TYPE_NAMETREE,
     COS_TYPE_NUMBERTREE,
     COS_TYPE_STREAM,
-    COS_TYPE_REFERENCE,
+    COS_TYPE_REFERENCE, /* 11 */
 };
 
 struct cos_object;
@@ -37,22 +37,20 @@ struct cos_array_entry {
 };
 
 struct cos_string {
-    uint8_t *data;
-    size_t length;
-    size_t alloc;
+    uint8_t *data; /**< string data */
+    size_t length; /**< string length */
+    size_t alloc; /**< memory allocation for string */
 };
 
 struct cos_reference {
-    /** id of indirect object */
-    uint64_t id;
-
-    /* generation of indirect object */
-    uint64_t generation;
+    uint64_t id; /**< id of indirect object */
+    uint64_t generation; /**< generation of indirect object */
 };
 
 struct cos_stream {
-    uint8_t *data;
-    size_t length;
+    const uint8_t *data; /**< decoded stream data */
+    int64_t length; /**< decoded stream length */
+    size_t alloc; /**< memory allocated for stream */
 };
 
 

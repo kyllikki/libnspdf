@@ -357,8 +357,9 @@ cos_get_stream(struct nspdf_doc *doc,
                struct cos_stream **stream_out)
 {
     nspdferror res;
-
+    //printf("%p %d\n", cobj, cobj->type);
     res = nspdf__xref_get_referenced(doc, &cobj);
+    //printf("%p %d res:%d\n", cobj, cobj->type, res);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_STREAM) {
             res = NSPDFERROR_TYPE;

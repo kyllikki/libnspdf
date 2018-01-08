@@ -120,12 +120,13 @@ nspdf__decode_page_tree(struct nspdf_doc *doc,
         }
 
         /*
-        printf("page index:%d page:%p resources:%p mediabox:%p contents:%p\n",
+        printf("page index:%d page:%p resources:%p mediabox:%p contents:%p contents type:%d\n",
                *page_index,
                page,
                page->resources,
                page->mediabox,
-               page->contents);
+               page->contents,
+            page->contents->type);
         */
 
         (*page_index)++;

@@ -310,7 +310,7 @@ cos_decode_dictionary(struct nspdf_doc *doc,
 
     if ((DOC_BYTE(doc, offset) != '<') ||
         (DOC_BYTE(doc, offset + 1) != '<')) {
-        return -1; /* syntax error */
+        return NSPDFERROR_SYNTAX; /* syntax error */
     }
     offset += 2;
     doc_skip_ws(doc, &offset);
@@ -319,7 +319,7 @@ cos_decode_dictionary(struct nspdf_doc *doc,
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
-        return -1; /* memory error */
+        return NSPDFERROR_NOMEM;
     }
     cosobj->type = COS_TYPE_DICTIONARY;
 
@@ -337,7 +337,6 @@ cos_decode_dictionary(struct nspdf_doc *doc,
             printf("key was %d not a name %d\n", key->type, COS_TYPE_NAME);
             return NSPDFERROR_SYNTAX;
         }
-        //printf("key: %s\n", key->u.n);
 
         res = cos_parse_object(doc, &offset, &value);
         if (res != NSPDFERROR_OK) {
@@ -352,6 +351,7 @@ cos_decode_dictionary(struct nspdf_doc *doc,
             /* todo free up any dictionary entries already created */
             return NSPDFERROR_NOMEM;
         }
+        //printf("key:%s value(type):%d\n", key->u.n, value->type);
 
         entry->key = key;
         entry->value = value;
@@ -622,6 +622,110 @@ cos_decode_null(struct nspdf_doc *doc,
     return NSPDFERROR_OK;
 }
 
+/**
+ * parse a stream object
+ */
+static nspdferror
+cos_parse_stream(struct nspdf_doc *doc,
+                 uint64_t *offset_out,
+                 struct cos_object **cosobj_out)
+{
+    struct cos_object *cosobj;
+    nspdferror res;
+    struct cos_object *stream_dict;
+    uint64_t offset;
+    struct cos_object *stream_filter;
+    struct cos_stream *stream;
+
+    offset = *offset_out;
+    stream_dict = *cosobj_out;
+
+    if (stream_dict->type != COS_TYPE_DICTIONARY) {
+        /* cannot be a stream if indirect object is not a dict */
+        return NSPDFERROR_NOTFOUND;
+    }
+
+    if ((DOC_BYTE(doc, offset    ) != 's') &&
+        (DOC_BYTE(doc, offset + 1) != 't') &&
+        (DOC_BYTE(doc, offset + 2) != 'r') &&
+        (DOC_BYTE(doc, offset + 1) != 'e') &&
+        (DOC_BYTE(doc, offset + 2) != 'a') &&
+        (DOC_BYTE(doc, offset + 3) != 'm')) {
+        /* no stream marker */
+        return NSPDFERROR_NOTFOUND;
+    }
+    offset += 6;
+    //printf("detected stream\n");
+
+    /* parsed object was a dictionary and there is a stream marker */
+    res = doc_skip_ws(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    stream = calloc(1, sizeof(struct cos_stream));
+    if (stream == NULL) {
+        return NSPDFERROR_NOMEM;
+    }
+
+    res = cos_get_dictionary_int(doc, stream_dict, "Length", &stream->length);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+    //printf("stream length %d\n", stream_length);
+    stream->data = doc->start + offset;
+    stream->alloc = 0; /* stream is pointing at non malloced data */
+
+    offset += stream->length;
+
+    /* possible whitespace after stream data */
+    res = doc_skip_ws(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    if ((DOC_BYTE(doc, offset    ) != 'e') &&
+        (DOC_BYTE(doc, offset + 1) != 'n') &&
+        (DOC_BYTE(doc, offset + 2) != 'd') &&
+        (DOC_BYTE(doc, offset + 3) != 's') &&
+        (DOC_BYTE(doc, offset + 4) != 't') &&
+        (DOC_BYTE(doc, offset + 5) != 'r') &&
+        (DOC_BYTE(doc, offset + 6) != 'e') &&
+        (DOC_BYTE(doc, offset + 7) != 'a') &&
+        (DOC_BYTE(doc, offset + 8) != 'm')) {
+        /* no endstream marker */
+        return NSPDFERROR_SYNTAX;
+    }
+    offset += 9;
+    //printf("detected endstream\n");
+
+    res = doc_skip_ws(doc, &offset);
+    if (res != NSPDFERROR_OK) {
+        return res;
+    }
+
+    //printf("returning with offset at %d\n", offset);
+    /* optional filter */
+    res = cos_get_dictionary_value(doc, stream_dict, "Filter", &stream_filter);
+    if (res == NSPDFERROR_OK) {
+        /** \todo filter stream */
+        printf("applying filter %s\n", stream_filter->u.n);
+    }
+
+    /* allocate stream object */
+    cosobj = calloc(1, sizeof(struct cos_object));
+    if (cosobj == NULL) {
+        free(stream);
+        return NSPDFERROR_NOMEM;
+    }
+    cosobj->type = COS_TYPE_STREAM;
+    cosobj->u.stream = stream;
+
+    *cosobj_out = cosobj;
+    *offset_out = offset;
+
+    return NSPDFERROR_OK;
+}
 
 /**
  * attempt to decode input data into a reference, indirect or stream object
@@ -719,7 +823,21 @@ cos_attempt_decode_reference(struct nspdf_doc *doc,
             cos_free_object(generation);
             return res;
         }
-        //printf("parsed object type %d\nendobj\n",indirect->type);
+
+        /* attempt to parse input as a stream */
+        res = cos_parse_stream(doc, &offset, &indirect);
+        if ((res != NSPDFERROR_OK) &&
+            (res != NSPDFERROR_NOTFOUND)) {
+            cos_free_object(indirect);
+            cos_free_object(generation);
+            return res;
+        }
+
+        /*printf("parsed indirect object num:%d gen:%d type %d\n",
+               (*cosobj_out)->u.i,
+               generation->u.i,
+               indirect->type);
+        */
 
         if ((DOC_BYTE(doc, offset    ) != 'e') &&
             (DOC_BYTE(doc, offset + 1) != 'n') &&
@@ -732,7 +850,7 @@ cos_attempt_decode_reference(struct nspdf_doc *doc,
             return NSPDFERROR_SYNTAX;
         }
         offset += 6;
-        //printf("skipping\n");
+        //printf("endobj\n");
 
         res = doc_skip_ws(doc, &offset);
         if (res != NSPDFERROR_OK) {
@@ -746,6 +864,8 @@ cos_attempt_decode_reference(struct nspdf_doc *doc,
         *cosobj_out = indirect;
 
         *offset_out = offset;
+
+        //printf("returning object\n");
     }
 
     cos_free_object(generation);
