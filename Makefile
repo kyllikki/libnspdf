@@ -45,10 +45,10 @@ ifneq ($(findstring clean,$(MAKECMDGOALS)),clean)
   endif
 endif
 
-REQUIRED_LIBS := nspdf
+REQUIRED_LIBS := nspdf z
 
 TESTCFLAGS := -g -O2
-TESTLDFLAGS := -l$(COMPONENT) $(TESTLDFLAGS)
+TESTLDFLAGS := -l$(COMPONENT) -lz $(TESTLDFLAGS)
 
 include $(NSBUILD)/Makefile.top
 
