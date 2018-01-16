@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <nspdf/page.h>
 
 #include "cos_object.h"
@@ -145,18 +146,68 @@ nspdf_page_count(struct nspdf_doc *doc, unsigned int *pages_out)
     return NSPDFERROR_OK;
 }
 
+static nspdferror
+nspdf__render_content_stream(struct nspdf_doc *doc,
+                             struct cos_stream *content_stream)
+{
+    printf("%.*s", (int)content_stream->length, content_stream->data);
+    return NSPDFERROR_OK;
+}
+
 /* exported interface documented in nspdf/page.h */
 nspdferror
 nspdf_page_render(struct nspdf_doc *doc, unsigned int page_number)
 {
     struct page_table_entry *page_entry;
-    struct cos_stream *stream;
+    struct cos_object *content_array;
+    struct cos_stream *content_stream;
     nspdferror res;
 
     page_entry = doc->page_table + page_number;
 
-    res = cos_get_stream(doc, page_entry->contents, &stream);
-    if (res != NSPDFERROR_OK) {
+    /* contents may be an array of stream objects or just a single one */
+    res = cos_get_array(doc, page_entry->contents, &content_array);
+    if (res == NSPDFERROR_OK) {
+        unsigned int content_stream_count;
+        unsigned int content_stream_index;
+
+        res = cos_get_array_size(doc, content_array, &content_stream_count);
+        if (res != NSPDFERROR_OK) {
+            return res;
+        }
+        for (content_stream_index = 0;
+             content_stream_index < content_stream_count;
+             content_stream_index++) {
+            struct cos_object *content_entry;
+            res = cos_get_array_value(doc,
+                                content_array,
+                                content_stream_index,
+                                &content_entry);
+            if (res != NSPDFERROR_OK) {
+                return res;
+            }
+
+            res = cos_get_stream(doc, content_entry, &content_stream);
+            if (res != NSPDFERROR_OK) {
+                return res;
+            }
+
+            res = nspdf__render_content_stream(doc, content_stream);
+            if (res != NSPDFERROR_OK) {
+                return res;
+            }
+        }
+    } else if (res == NSPDFERROR_TYPE) {
+        res = cos_get_stream(doc, page_entry->contents, &content_stream);
+        if (res != NSPDFERROR_OK) {
+            return res;
+        }
+
+        res = nspdf__render_content_stream(doc, content_stream);
+        if (res != NSPDFERROR_OK) {
+            return res;
+        }
+    } else {
         return res;
     }
 
