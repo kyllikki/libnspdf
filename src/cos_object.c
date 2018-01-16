@@ -23,7 +23,7 @@
 nspdferror cos_free_object(struct cos_object *cos_obj)
 {
     struct cos_dictionary_entry *dentry;
-    struct cos_array_entry *aentry;
+    unsigned int aentry;
 
     switch (cos_obj->type) {
     case COS_TYPE_NAME:
@@ -50,16 +50,13 @@ nspdferror cos_free_object(struct cos_object *cos_obj)
         break;
 
     case COS_TYPE_ARRAY:
-        aentry = cos_obj->u.array;
-        while (aentry != NULL) {
-            struct cos_array_entry *oaentry;
-
-            cos_free_object(aentry->value);
-
-            oaentry = aentry;
-            aentry = aentry->next;
-            free(oaentry);
+        if (cos_obj->u.array->alloc > 0) {
+            for (aentry = 0; aentry < cos_obj->u.array->length; aentry++) {
+                cos_free_object(*(cos_obj->u.array->values + aentry));
+            }
+            free(cos_obj->u.array->values);
         }
+        free(cos_obj->u.array);
         break;
 
     case COS_TYPE_STREAM:
@@ -381,25 +378,16 @@ cos_get_array_value(struct nspdf_doc *doc,
                     struct cos_object **value_out)
 {
     nspdferror res;
-    struct cos_array_entry *entry;
 
     res = nspdf__xref_get_referenced(doc, &array);
     if (res == NSPDFERROR_OK) {
         if (array->type != COS_TYPE_ARRAY) {
             res = NSPDFERROR_TYPE;
         } else {
-            unsigned int cur_index = 0;
-            res = NSPDFERROR_RANGE;
-
-            entry = array->u.array;
-            while (entry != NULL) {
-                if (cur_index == index) {
-                    *value_out = entry->value;
-                    res = NSPDFERROR_OK;
-                    break;
-                }
-                cur_index++;
-                entry = entry->next;
+            if (index >= array->u.array->length) {
+                res = NSPDFERROR_RANGE;
+            } else {
+                *value_out = *(array->u.array->values + index);
             }
         }
     }
@@ -428,21 +416,13 @@ cos_get_array_size(struct nspdf_doc *doc,
                    unsigned int *size_out)
 {
     nspdferror res;
-    unsigned int array_size = 0;
-    struct cos_array_entry *array_entry;
 
     res = nspdf__xref_get_referenced(doc, &cobj);
     if (res == NSPDFERROR_OK) {
         if (cobj->type != COS_TYPE_ARRAY) {
             res = NSPDFERROR_TYPE;
         } else {
-            /* walk array list to enumerate entries */
-            array_entry = cobj->u.array;
-            while (array_entry != NULL) {
-                array_size++;
-                array_entry = array_entry->next;
-            }
-            *size_out = array_size;
+            *size_out = cobj->u.array->length;
         }
     }
     return res;

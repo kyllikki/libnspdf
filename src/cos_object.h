@@ -45,12 +45,18 @@ struct cos_dictionary_entry {
     struct cos_object *value;
 };
 
-struct cos_array_entry {
-    /** next value in array */
-    struct cos_array_entry *next;
+/**
+ * array of COS objects
+ */
+struct cos_array {
+    /** number of values */
+    unsigned int length;
 
-    /** value */
-    struct cos_object *value;
+    /** number of allocated values */
+    unsigned int alloc;
+
+    /** array of object pointers */
+    struct cos_object **values;
 };
 
 struct cos_string {
@@ -96,7 +102,7 @@ struct cos_object {
         struct cos_dictionary_entry *dictionary;
 
         /* array */
-        struct cos_array_entry *array;
+        struct cos_array *array;
 
         /** reference */
         struct cos_reference *reference;

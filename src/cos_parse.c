@@ -380,16 +380,16 @@ cos_decode_dictionary(struct nspdf_doc *doc,
 }
 
 /**
- * decode a list
+ * parse a list
  */
 static nspdferror
-cos_decode_list(struct nspdf_doc *doc,
-                uint64_t *offset_out,
-                struct cos_object **cosobj_out)
+cos_parse_list(struct nspdf_doc *doc,
+               uint64_t *offset_out,
+               struct cos_object **cosobj_out)
 {
     uint64_t offset;
     struct cos_object *cosobj;
-    struct cos_array_entry *entry;
+    struct cos_array *array;
     struct cos_object *value;
     nspdferror res;
 
@@ -398,7 +398,7 @@ cos_decode_list(struct nspdf_doc *doc,
     /* sanity check first token is list open */
     if (DOC_BYTE(doc, offset) != '[') {
         printf("not a [\n");
-        return NSPDFERROR_SYNTAX; /* syntax error */
+        return NSPDFERROR_SYNTAX;
     }
     offset++;
 
@@ -409,12 +409,19 @@ cos_decode_list(struct nspdf_doc *doc,
     }
 
     //printf("found a list\n");
-
+    /* setup array object */
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
         return NSPDFERROR_NOMEM;
     }
     cosobj->type = COS_TYPE_ARRAY;
+
+    array = calloc(1, sizeof(struct cos_array));
+    if (array == NULL) {
+        cos_free_object(cosobj);
+        return NSPDFERROR_NOMEM;
+    }
+    cosobj->u.array = array;
 
     while (DOC_BYTE(doc, offset) != ']') {
 
@@ -425,17 +432,20 @@ cos_decode_list(struct nspdf_doc *doc,
             return res;
         }
 
-        /* add entry to array */
-        entry = calloc(1, sizeof(struct cos_array_entry));
-        if (entry == NULL) {
-            cos_free_object(cosobj);
-            return NSPDFERROR_NOMEM;
+        if (array->alloc < (array->length + 1)) {
+            struct cos_object **nvalues;
+            nvalues = realloc(array->values,
+                            sizeof(struct cos_object *) * (array->alloc + 32));
+            if (nvalues == NULL) {
+                cos_free_object(cosobj);
+                return NSPDFERROR_NOMEM;
+            }
+            array->values = nvalues;
+            array->alloc += 32;
         }
 
-        entry->value = value;
-        entry->next = cosobj->u.array;
-
-        cosobj->u.array = entry;
+        *(array->values + array->length) = value;
+        array->length++;
     }
     offset++; /* skip closing ] */
 
@@ -996,7 +1006,7 @@ cos_parse_object(struct nspdf_doc *doc,
         break;
 
     case '[':
-        res = cos_decode_list(doc, &offset, &cosobj);
+        res = cos_parse_list(doc, &offset, &cosobj);
         break;
 
     case 't':
