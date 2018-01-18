@@ -92,7 +92,7 @@ decode_startxref(struct nspdf_doc *doc,
     }
     offset += 9;
 
-    res = doc_skip_ws(doc, &offset);
+    res = nspdf__stream_skip_ws(doc->stream, &offset);
     if (res != NSPDFERROR_OK) {
         return res;
     }
@@ -168,7 +168,7 @@ decode_trailer(struct nspdf_doc *doc,
         return -1;
     }
     offset += 7;
-    doc_skip_ws(doc, &offset);
+    nspdf__stream_skip_ws(doc->stream, &offset);
 
     res = cos_parse_object(doc, &offset, &trailer);
     if (res != 0) {
@@ -422,12 +422,19 @@ static nspdferror check_header(struct nspdf_doc *doc)
 nspdferror
 nspdf_document_parse(struct nspdf_doc *doc,
                      const uint8_t *buffer,
-                     uint64_t buffer_length)
+                     unsigned int buffer_length)
 {
     nspdferror res;
 
     doc->start = buffer;
     doc->length = buffer_length;
+
+    doc->stream = calloc(1, sizeof(struct cos_stream));
+    if (doc->stream == NULL) {
+        return NSPDFERROR_NOMEM;
+    }
+    doc->stream->data = buffer;
+    doc->stream->length = buffer_length;
 
     res = check_header(doc);
     if (res != 0) {

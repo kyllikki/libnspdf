@@ -18,11 +18,18 @@
 struct xref_table_entry;
 struct page_table_entry;
 
-/** pdf document */
+/**
+ * pdf document
+ */
 struct nspdf_doc {
 
     const uint8_t *start; /* start of pdf document in input stream */
-    uint64_t length;
+    unsigned int length;
+
+    /**
+     * input data stream
+     */
+    struct cos_stream *stream;
 
     int major;
     int minor;
@@ -46,8 +53,14 @@ struct nspdf_doc {
 /* byte data acessory, allows for more complex buffer handling in future */
 #define DOC_BYTE(doc, offset) (doc->start[(offset)])
 
+static inline uint8_t
+stream_byte(struct cos_stream *stream, unsigned int offset)
+{
+    return *(stream->data + offset);
+}
+
 /* helpers in pdf_doc.c */
-nspdferror doc_skip_ws(struct nspdf_doc *doc, uint64_t *offset);
+nspdferror nspdf__stream_skip_ws(struct cos_stream *stream, uint64_t *offset);
 nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset);
 nspdferror doc_read_uint(struct nspdf_doc *doc, uint64_t *offset_out, uint64_t *result_out);
 
@@ -68,9 +81,6 @@ nspdferror nspdf__xref_allocate(struct nspdf_doc *doc, int64_t size);
 nspdferror nspdf__decode_page_tree(struct nspdf_doc *doc, struct cos_object *page_tree_node, unsigned int *page_index);
 
 /* cos stream filters */
-nspdferror
-nspdf__cos_stream_filter(struct nspdf_doc *doc,
-                         const char *filter_name,
-                         struct cos_stream **stream_out);
+nspdferror nspdf__cos_stream_filter(struct nspdf_doc *doc, const char *filter_name, struct cos_stream **stream_out);
 
 #endif

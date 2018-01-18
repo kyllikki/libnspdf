@@ -17,6 +17,7 @@
 #include <nspdf/errors.h>
 
 #include "cos_object.h"
+#include "cos_parse.h"
 #include "pdf_doc.h"
 
 
@@ -367,6 +368,54 @@ cos_get_stream(struct nspdf_doc *doc,
     return res;
 }
 
+
+/*
+ * get object from object reference
+ */
+nspdferror
+cos_get_object(struct nspdf_doc *doc,
+               struct cos_object *cobj,
+               struct cos_object **value_out)
+{
+    nspdferror res;
+    res = nspdf__xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        *value_out = cobj;
+    }
+    return res;
+}
+
+
+nspdferror
+cos_get_content(struct nspdf_doc *doc,
+                struct cos_object *cobj,
+                struct cos_content **content_out)
+{
+    nspdferror res;
+    struct cos_object *content_obj;
+
+    res = nspdf__xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type == COS_TYPE_STREAM) {
+            res = cos_parse_content_stream(doc, cobj->u.stream, &content_obj);
+            if (res == NSPDFERROR_OK) {
+                /* replace stream object with parsed content operations */
+                struct cos_object tmpobj;
+                tmpobj = *cobj;
+                *cobj = *content_obj;
+                *content_obj = tmpobj;
+                cos_free_object(content_obj);
+
+                *content_out = cobj->u.content;
+            }
+        } else if (cobj->type == COS_TYPE_CONTENT) {
+            *content_out = cobj->u.content;
+        } else {
+            res = NSPDFERROR_TYPE;
+        }
+    }
+    return res;
+}
 
 /*
  * get a value for a key from a dictionary

@@ -40,7 +40,7 @@ nspdferror nspdf_document_destroy(struct nspdf_doc *doc);
  * ready to render pages. The passed buffer ownership is transfered and must
  * not be altered untill the document is destroyed.
  */
-nspdferror nspdf_document_parse(struct nspdf_doc *doc, const uint8_t *buffer, uint64_t buffer_length);
+nspdferror nspdf_document_parse(struct nspdf_doc *doc, const uint8_t *buffer, unsigned int buffer_length);
 
 
 #endif /* NSPDF_DOCUMENT_H_ */

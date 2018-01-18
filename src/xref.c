@@ -68,7 +68,7 @@ nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
     }
     offset += 4;
 
-    res = doc_skip_ws(doc, &offset);
+    res = nspdf__stream_skip_ws(doc->stream, &offset);
     if (res != NSPDFERROR_OK) {
         return res;
     }
@@ -79,7 +79,7 @@ nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
     res = doc_read_uint(doc, &offset, &objnumber);
     while (res == NSPDFERROR_OK) {
         uint64_t lastobj;
-        res = doc_skip_ws(doc, &offset);
+        res = nspdf__stream_skip_ws(doc->stream, &offset);
         if (res != NSPDFERROR_OK) {
             return res;
         }
@@ -89,7 +89,7 @@ nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
             return res;
         }
 
-        res = doc_skip_ws(doc, &offset);
+        res = nspdf__stream_skip_ws(doc->stream, &offset);
         if (res != NSPDFERROR_OK) {
             return res;
         }
@@ -169,7 +169,7 @@ nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out)
     }
 
     if (entry->object == NULL) {
-        /* indirect object has never been decoded */
+        /* indirect object has never been parsed */
         offset = entry->offset;
         res = cos_parse_object(doc, &offset, &indirect);
         if (res != NSPDFERROR_OK) {

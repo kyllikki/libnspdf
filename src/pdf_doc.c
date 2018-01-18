@@ -19,28 +19,26 @@
 #include "cos_object.h"
 #include "pdf_doc.h"
 
-/**
- * move offset to next non whitespace byte
- */
-nspdferror doc_skip_ws(struct nspdf_doc *doc, uint64_t *offset)
+nspdferror nspdf__stream_skip_ws(struct cos_stream *stream, uint64_t *offset)
 {
     uint8_t c;
     /* TODO sort out keeping offset in range */
-    c = DOC_BYTE(doc, *offset);
+    c = stream_byte(stream, *offset);
     while ((bclass[c] & (BC_WSPC | BC_CMNT) ) != 0) {
         (*offset)++;
         /* skip comments */
         if ((bclass[c] & BC_CMNT) != 0) {
-            c = DOC_BYTE(doc, *offset);
+            c = stream_byte(stream, *offset);
             while ((bclass[c] & BC_EOLM ) == 0) {
                 (*offset)++;
-                c = DOC_BYTE(doc, *offset);
+                c = stream_byte(stream, *offset);
             }
         }
-        c = DOC_BYTE(doc, *offset);
+        c = stream_byte(stream, *offset);
     }
     return NSPDFERROR_OK;
 }
+
 
 /**
  * move offset to next non eol byte

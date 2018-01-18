@@ -16,6 +16,7 @@
 #define NSPDF__COS_OBJECT_H_
 
 struct nspdf_doc;
+struct content_operation;
 
 enum cos_type {
     COS_TYPE_NULL, /* 0 */
@@ -30,6 +31,7 @@ enum cos_type {
     COS_TYPE_NUMBERTREE,
     COS_TYPE_STREAM,
     COS_TYPE_REFERENCE, /* 11 */
+    COS_TYPE_CONTENT, /* 12 - parsed content stream */
 };
 
 struct cos_object;
@@ -59,10 +61,13 @@ struct cos_array {
     struct cos_object **values;
 };
 
+/**
+ * COS string data
+ */
 struct cos_string {
-    uint8_t *data; /**< string data */
-    size_t length; /**< string length */
+    unsigned int length; /**< string length */
     size_t alloc; /**< memory allocation for string */
+    uint8_t *data; /**< string data */
 };
 
 struct cos_reference {
@@ -71,11 +76,21 @@ struct cos_reference {
 };
 
 struct cos_stream {
-    const uint8_t *data; /**< decoded stream data */
-    int64_t length; /**< decoded stream length */
+    unsigned int length; /**< decoded stream length */
     size_t alloc; /**< memory allocated for stream */
+    const uint8_t *data; /**< decoded stream data */
 };
 
+
+/**
+ * Synthetic parsed content object.
+ *
+ */
+struct cos_content {
+    unsigned int length; /**< number of content operations */
+    unsigned int alloc; /**< number of allocated operations */
+    struct content_operation *operations;
+};
 
 struct cos_object {
     int type;
@@ -107,6 +122,8 @@ struct cos_object {
         /** reference */
         struct cos_reference *reference;
 
+        /** parsed content stream */
+        struct cos_content *content;
     } u;
 };
 
@@ -264,5 +281,31 @@ nspdferror cos_get_array(struct nspdf_doc *doc, struct cos_object *cobj, struct 
  */
 nspdferror cos_get_stream(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_stream **stream_out);
 
+/**
+ * get a direct cos object.
+ *
+ * Obtain a direct object if the passed object was a reference it is
+ * dereferenced from the cross reference table.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object.
+ * \param object_out The result object.
+ * \return NSERROR_OK and \p object_out updated,
+ */
+nspdferror cos_get_object(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_object **object_out);
+
+/**
+ * get a parsed content object
+ *
+ * Get the parsed content from a cos object, if the object is an object
+ *   reference it will be dereferenced first.
+ * The parsed content object is *not* a normal COS object rather it is the
+ *   internal result of parsing a PDF content stream.
+ * This object type is used to replace the stream object in the cross reference
+ *   table after its initial parse to avoid the need to keep and repeatedly
+ *   parse the filtered stream data.
+ *
+ */
+nspdferror cos_get_content(struct nspdf_doc *doc, struct cos_object *cobj, struct cos_content **content_out);
 
 #endif
