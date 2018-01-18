@@ -171,7 +171,7 @@ nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out)
     if (entry->object == NULL) {
         /* indirect object has never been parsed */
         offset = entry->offset;
-        res = cos_parse_object(doc, &offset, &indirect);
+        res = cos_parse_object(doc, doc->stream, &offset, &indirect);
         if (res != NSPDFERROR_OK) {
             //printf("failed to decode indirect object\n");
             return res;

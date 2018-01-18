@@ -156,7 +156,7 @@ nspdf__render_content_stream(struct nspdf_doc *doc,
 
     res = cos_get_content(doc, content_entry, &content_operations);
     if (res == NSPDFERROR_OK) {
-        printf("%p", content_operations);
+        printf("%p\n", content_operations);
     }
 
     return res;

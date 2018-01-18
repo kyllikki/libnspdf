@@ -170,7 +170,7 @@ decode_trailer(struct nspdf_doc *doc,
     offset += 7;
     nspdf__stream_skip_ws(doc->stream, &offset);
 
-    res = cos_parse_object(doc, &offset, &trailer);
+    res = cos_parse_object(doc, doc->stream, &offset, &trailer);
     if (res != 0) {
         return res;
     }
