@@ -16,6 +16,7 @@
 #include "cos_parse.h"
 #include "cos_object.h"
 #include "pdf_doc.h"
+#include "xref.h"
 
 
 /** indirect object */
@@ -24,7 +25,7 @@ struct xref_table_entry {
     struct cos_reference ref;
 
     /** offset of object */
-    uint64_t offset;
+    strmoff_t offset;
 
     /* indirect object if already decoded */
     struct cos_object *object;
@@ -50,9 +51,12 @@ nspdferror nspdf__xref_allocate(struct nspdf_doc *doc, int64_t size)
     return NSPDFERROR_OK;
 }
 
-nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
+nspdferror
+nspdf__xref_parse(struct nspdf_doc *doc,
+                  struct cos_stream *stream,
+                  strmoff_t *offset_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     nspdferror res;
     uint64_t objnumber; /* current object number */
     uint64_t objcount;
@@ -60,15 +64,15 @@ nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
     offset = *offset_out;
 
     /* xref object header */
-    if ((DOC_BYTE(doc, offset    ) != 'x') &&
-        (DOC_BYTE(doc, offset + 1) != 'r') &&
-        (DOC_BYTE(doc, offset + 2) != 'e') &&
-        (DOC_BYTE(doc, offset + 3) != 'f')) {
+    if ((stream_byte(stream, offset    ) != 'x') ||
+        (stream_byte(stream, offset + 1) != 'r') ||
+        (stream_byte(stream, offset + 2) != 'e') ||
+        (stream_byte(stream, offset + 3) != 'f')) {
         return NSPDFERROR_SYNTAX;
     }
     offset += 4;
 
-    res = nspdf__stream_skip_ws(doc->stream, &offset);
+    res = nspdf__stream_skip_ws(stream, &offset);
     if (res != NSPDFERROR_OK) {
         return res;
     }
@@ -76,20 +80,20 @@ nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
     /* subsections
      * <first object number> <number of references in subsection>
      */
-    res = doc_read_uint(doc, &offset, &objnumber);
+    res = nspdf__stream_read_uint(stream, &offset, &objnumber);
     while (res == NSPDFERROR_OK) {
         uint64_t lastobj;
-        res = nspdf__stream_skip_ws(doc->stream, &offset);
+        res = nspdf__stream_skip_ws(stream, &offset);
         if (res != NSPDFERROR_OK) {
             return res;
         }
 
-        res = doc_read_uint(doc, &offset, &objcount);
+        res = nspdf__stream_read_uint(stream, &offset, &objcount);
         if (res != NSPDFERROR_OK) {
             return res;
         }
 
-        res = nspdf__stream_skip_ws(doc->stream, &offset);
+        res = nspdf__stream_skip_ws(stream, &offset);
         if (res != NSPDFERROR_OK) {
             return res;
         }
@@ -103,19 +107,19 @@ nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
             uint64_t objgeneration;
 
             /* object index */
-            res = doc_read_uint(doc, &offset, &objindex);
+            res = nspdf__stream_read_uint(stream, &offset, &objindex);
             if (res != NSPDFERROR_OK) {
                 return res;
             }
             offset++; /* skip space */
 
-            res = doc_read_uint(doc, &offset, &objgeneration);
+            res = nspdf__stream_read_uint(stream, &offset, &objgeneration);
             if (res != NSPDFERROR_OK) {
                 return res;
             }
             offset++; /* skip space */
 
-            if ((DOC_BYTE(doc, offset++) == 'n')) {
+            if ((stream_byte(stream, offset++) == 'n')) {
                 if (objnumber < doc->xref_table_size) {
                     struct xref_table_entry *indobj;
                     indobj = doc->xref_table + objnumber;
@@ -133,7 +137,7 @@ nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out)
             offset += 2; /* skip EOL */
         }
 
-        res = doc_read_uint(doc, &offset, &objnumber);
+        res = nspdf__stream_read_uint(stream, &offset, &objnumber);
     }
 
     return NSPDFERROR_OK;
@@ -146,7 +150,7 @@ nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out)
     nspdferror res;
     struct cos_object *cobj;
     struct cos_object *indirect;
-    uint64_t offset;
+    strmoff_t offset;
     struct xref_table_entry *entry;
 
     cobj = *cobj_out;

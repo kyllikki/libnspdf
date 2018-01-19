@@ -15,16 +15,17 @@
 #ifndef NSPDF__COS_PARSE_H_
 #define NSPDF__COS_PARSE_H_
 
+#include "cos_stream.h"
+
 struct nspdf_doc;
 struct cos_object;
-struct cos_stream;
 
 /**
  * Parse input stream into an object
  *
  * lex and parse a byte stream to generate a COS object.
  */
-nspdferror cos_parse_object(struct nspdf_doc *doc, struct cos_stream *stream, uint64_t *offset_out, struct cos_object **cosobj_out);
+nspdferror cos_parse_object(struct nspdf_doc *doc, struct cos_stream *stream, strmoff_t *offset_out, struct cos_object **cosobj_out);
 
 /**
  * Parse content stream into content operations object

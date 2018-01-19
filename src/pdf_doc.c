@@ -19,7 +19,8 @@
 #include "cos_object.h"
 #include "pdf_doc.h"
 
-nspdferror nspdf__stream_skip_ws(struct cos_stream *stream, uint64_t *offset)
+nspdferror
+nspdf__stream_skip_ws(struct cos_stream *stream, strmoff_t *offset)
 {
     uint8_t c;
     /* TODO sort out keeping offset in range */
@@ -43,35 +44,36 @@ nspdferror nspdf__stream_skip_ws(struct cos_stream *stream, uint64_t *offset)
 /**
  * move offset to next non eol byte
  */
-nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset)
+nspdferror
+nspdf__stream_skip_eol(struct cos_stream *stream, strmoff_t *offset)
 {
     uint8_t c;
-    /* TODO sort out keeping offset in range */
-    c = DOC_BYTE(doc, *offset);
+    /** \todo sort out keeping offset in range */
+    c = stream_byte(stream, *offset);
     while ((bclass[c] & BC_EOLM) != 0) {
         (*offset)++;
-        c = DOC_BYTE(doc, *offset);
+        c = stream_byte(stream, *offset);
     }
     return NSPDFERROR_OK;
 }
 
 
 nspdferror
-doc_read_uint(struct nspdf_doc *doc,
-              uint64_t *offset_out,
-              uint64_t *result_out)
+nspdf__stream_read_uint(struct cos_stream *stream,
+                        strmoff_t *offset_out,
+                        uint64_t *result_out)
 {
     uint8_t c; /* current byte from source data */
+    strmoff_t offset; /* current offset of source data */
     unsigned int len; /* number of decimal places in number */
     uint8_t num[21]; /* temporary buffer for decimal values */
-    uint64_t offset; /* current offset of source data */
     uint64_t result=0; /* parsed result */
     uint64_t tens;
 
     offset = *offset_out;
 
     for (len = 0; len < sizeof(num); len++) {
-        c = DOC_BYTE(doc, offset);
+        c = stream_byte(stream, offset);
         if ((bclass[c] & BC_DCML) != BC_DCML) {
             if (len == 0) {
                 return -2; /* parse error no decimals in input */
@@ -89,5 +91,5 @@ doc_read_uint(struct nspdf_doc *doc,
         num[len] = c - '0';
         offset++;
     }
-    return -1; /* number too long */
+    return NSPDFERROR_RANGE; /* number too long */
 }

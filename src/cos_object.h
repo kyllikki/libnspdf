@@ -15,6 +15,8 @@
 #ifndef NSPDF__COS_OBJECT_H_
 #define NSPDF__COS_OBJECT_H_
 
+#include "cos_stream.h"
+
 struct nspdf_doc;
 struct content_operation;
 
@@ -75,12 +77,6 @@ struct cos_reference {
     uint64_t generation; /**< generation of indirect object */
 };
 
-struct cos_stream {
-    unsigned int length; /**< decoded stream length */
-    size_t alloc; /**< memory allocated for stream */
-    const uint8_t *data; /**< decoded stream data */
-};
-
 
 /**
  * Synthetic parsed content object.
@@ -102,7 +98,7 @@ struct cos_object {
         int64_t i;
 
         /** real */
-        double r;
+        float real;
 
         /** name */
         char *n;
@@ -113,10 +109,10 @@ struct cos_object {
         /** stream data */
         struct cos_stream *stream;
 
-        /* dictionary */
+        /** dictionary */
         struct cos_dictionary_entry *dictionary;
 
-        /* array */
+        /** array */
         struct cos_array *array;
 
         /** reference */

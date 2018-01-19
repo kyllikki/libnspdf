@@ -16,6 +16,7 @@
 
 #include <nspdf/errors.h>
 
+#include "xref.h"
 #include "cos_object.h"
 #include "cos_parse.h"
 #include "pdf_doc.h"

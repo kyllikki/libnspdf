@@ -19,9 +19,13 @@
 #include "cos_parse.h"
 #include "byte_class.h"
 #include "cos_object.h"
+#include "xref.h"
 #include "pdf_doc.h"
 
 #define SLEN(x) (sizeof((x)) - 1)
+
+/* byte data acessory, allows for more complex buffer handling in future */
+#define DOC_BYTE(doc, offset) (doc->start[(offset)])
 
 #define STARTXREF_TOK "startxref"
 
@@ -34,10 +38,11 @@
 /**
  * finds the startxref marker at the end of input
  */
-static nspdferror find_startxref(struct nspdf_doc *doc, uint64_t *offset_out)
+static nspdferror
+find_startxref(struct nspdf_doc *doc, strmoff_t *offset_out)
 {
-    uint64_t offset; /* offset of characters being considered for startxref */
-    uint64_t earliest; /* earliest offset to serch for startxref */
+    strmoff_t offset; /* offset of characters being considered for startxref */
+    unsigned int earliest; /* earliest offset to serch for startxref */
 
     offset = doc->length - SLEN(STARTXREF_TOK);
 
@@ -70,10 +75,10 @@ static nspdferror find_startxref(struct nspdf_doc *doc, uint64_t *offset_out)
  */
 static nspdferror
 decode_startxref(struct nspdf_doc *doc,
-                 uint64_t *offset_out,
-                 uint64_t *start_xref_out)
+                 strmoff_t *offset_out,
+                 unsigned int *start_xref_out)
 {
-    uint64_t offset; /* offset of characters being considered for startxref */
+    strmoff_t offset; /* offset of characters being considered for startxref */
     uint64_t start_xref;
     nspdferror res;
 
@@ -97,12 +102,12 @@ decode_startxref(struct nspdf_doc *doc,
         return res;
     }
 
-    res = doc_read_uint(doc, &offset, &start_xref);
+    res = nspdf__stream_read_uint(doc->stream, &offset, &start_xref);
     if (res != NSPDFERROR_OK) {
         return res;
     }
 
-    res = doc_skip_eol(doc, &offset);
+    res = nspdf__stream_skip_eol(doc->stream, &offset);
     if (res != NSPDFERROR_OK) {
         return res;
     }
@@ -126,9 +131,9 @@ decode_startxref(struct nspdf_doc *doc,
 /**
  * finds the next trailer
  */
-static nspdferror find_trailer(struct nspdf_doc *doc, uint64_t *offset_out)
+static nspdferror find_trailer(struct nspdf_doc *doc, strmoff_t *offset_out)
 {
-    uint64_t offset; /* offset of characters being considered for trailer */
+    strmoff_t offset; /* offset of characters being considered for trailer */
 
     for (offset = *offset_out;offset < doc->length; offset++) {
         if ((DOC_BYTE(doc, offset    ) == 't') &&
@@ -148,12 +153,12 @@ static nspdferror find_trailer(struct nspdf_doc *doc, uint64_t *offset_out)
 
 static nspdferror
 decode_trailer(struct nspdf_doc *doc,
-               uint64_t *offset_out,
+               strmoff_t *offset_out,
                struct cos_object **trailer_out)
 {
     struct cos_object *trailer;
     int res;
-    uint64_t offset;
+    strmoff_t offset;
 
     offset = *offset_out;
 
@@ -193,11 +198,11 @@ decode_trailer(struct nspdf_doc *doc,
  * recursively parse trailers and xref tables
  */
 static nspdferror
-decode_xref_trailer(struct nspdf_doc *doc, uint64_t xref_offset)
+decode_xref_trailer(struct nspdf_doc *doc, unsigned int xref_offset)
 {
     nspdferror res;
-    uint64_t offset; /* the current data offset */
-    uint64_t startxref; /* the value of the startxref field */
+    strmoff_t offset; /* the current data offset */
+    unsigned int startxref; /* the value of the startxref field */
     struct cos_object *trailer; /* the current trailer */
     int64_t prev;
 
@@ -275,7 +280,7 @@ decode_xref_trailer(struct nspdf_doc *doc, uint64_t xref_offset)
     offset = xref_offset;
     /** @todo deal with XrefStm (number) in trailer */
 
-    res = nspdf__xref_parse(doc, &offset);
+    res = nspdf__xref_parse(doc, doc->stream, &offset);
     if (res != NSPDFERROR_OK) {
         printf("failed to decode xref table\n");
         goto decode_xref_trailer_failed;
@@ -313,8 +318,8 @@ decode_xref_trailer_failed:
 static nspdferror decode_trailers(struct nspdf_doc *doc)
 {
     nspdferror res;
-    uint64_t offset; /* the current data offset */
-    uint64_t startxref; /* the value of the first startxref field */
+    strmoff_t offset; /* the current data offset */
+    unsigned int startxref; /* the value of the first startxref field */
 
     res = find_startxref(doc, &offset);
     if (res != NSPDFERROR_OK) {

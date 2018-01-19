@@ -15,6 +15,8 @@
 #ifndef NSPDF__PDF_DOC_H_
 #define NSPDF__PDF_DOC_H_
 
+#include "cos_stream.h"
+
 struct xref_table_entry;
 struct page_table_entry;
 
@@ -50,33 +52,11 @@ struct nspdf_doc {
     struct page_table_entry *page_table;
 };
 
-/* byte data acessory, allows for more complex buffer handling in future */
-#define DOC_BYTE(doc, offset) (doc->start[(offset)])
-
-static inline uint8_t
-stream_byte(struct cos_stream *stream, unsigned int offset)
-{
-    return *(stream->data + offset);
-}
-
 /* helpers in pdf_doc.c */
-nspdferror nspdf__stream_skip_ws(struct cos_stream *stream, uint64_t *offset);
-nspdferror doc_skip_eol(struct nspdf_doc *doc, uint64_t *offset);
-nspdferror doc_read_uint(struct nspdf_doc *doc, uint64_t *offset_out, uint64_t *result_out);
+nspdferror nspdf__stream_skip_ws(struct cos_stream *stream, strmoff_t *offset);
+nspdferror nspdf__stream_skip_eol(struct cos_stream *stream, strmoff_t *offset);
+nspdferror nspdf__stream_read_uint(struct cos_stream *stream, strmoff_t *offset_out, uint64_t *result_out);
 
-/* cross reference table handlers */
-/**
- * parse xref from file
- */
-nspdferror nspdf__xref_parse(struct nspdf_doc *doc, uint64_t *offset_out);
-
-
-/**
- * get an object dereferencing through xref table if necessary
- */
-nspdferror nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out);
-
-nspdferror nspdf__xref_allocate(struct nspdf_doc *doc, int64_t size);
 
 nspdferror nspdf__decode_page_tree(struct nspdf_doc *doc, struct cos_object *page_tree_node, unsigned int *page_index);
 

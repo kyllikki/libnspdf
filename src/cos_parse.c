@@ -63,7 +63,7 @@ static uint8_t xtoi(uint8_t x)
  */
 static nspdferror
 cos_parse_number(struct cos_stream *stream,
-                 uint64_t *offset_out,
+                 strmoff_t *offset_out,
                  struct cos_object **cosobj_out)
 {
     nspdferror res;
@@ -71,12 +71,21 @@ cos_parse_number(struct cos_stream *stream,
     uint8_t c; /* current byte from source data */
     unsigned int len; /* number of decimal places in number */
     uint8_t num[21]; /* temporary buffer for decimal values */
-    uint64_t offset; /* current offset of source data */
+    strmoff_t offset; /* current offset of source data */
+    unsigned int point;
+    bool real = false;
 
     offset = *offset_out;
 
     for (len = 0; len < sizeof(num); len++) {
         c = stream_byte(stream, offset);
+        if (c == '.') {
+            real = true;
+            point = len;
+            offset++;
+            c = stream_byte(stream, offset);
+        }
+
         if ((bclass[c] & BC_DCML) != BC_DCML) {
             int64_t result = 0; /* parsed result */
             uint64_t tens;
@@ -85,6 +94,9 @@ cos_parse_number(struct cos_stream *stream,
                  /* parse error no decimals in input */
                 return NSPDFERROR_SYNTAX;
             }
+
+            point = len - point;
+
             /* sum value from each place */
             for (tens = 1; len > 0; tens = tens * 10, len--) {
                 result += (num[len - 1] * tens);
@@ -100,8 +112,18 @@ cos_parse_number(struct cos_stream *stream,
                 return NSPDFERROR_NOMEM;
             }
 
-            cosobj->type = COS_TYPE_INT;
-            cosobj->u.i = result;
+            if (real) {
+                unsigned int div = 1;
+                for (; point > 0;point--) {
+                    div = div * 10;
+                }
+                cosobj->type = COS_TYPE_REAL;
+                cosobj->u.real = (float)result / div;
+                printf("real %d %f\n", result, cosobj->u.real);
+            } else {
+                cosobj->type = COS_TYPE_INT;
+                cosobj->u.i = result;
+            }
 
             *cosobj_out = cosobj;
 
@@ -122,10 +144,10 @@ cos_parse_number(struct cos_stream *stream,
  */
 static nspdferror
 cos_parse_string(struct cos_stream *stream,
-                  uint64_t *offset_out,
+                  strmoff_t *offset_out,
                   struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     struct cos_object *cosobj;
     uint8_t c;
     unsigned int pdepth = 1; /* depth of open parens */
@@ -251,10 +273,10 @@ cos_parse_string(struct cos_stream *stream,
  */
 static nspdferror
 cos_parse_hex_string(struct cos_stream *stream,
-                     uint64_t *offset_out,
+                     strmoff_t *offset_out,
                      struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     struct cos_object *cosobj;
     uint8_t c;
     uint8_t value = 0;
@@ -315,15 +337,15 @@ cos_parse_hex_string(struct cos_stream *stream,
 static nspdferror
 cos_parse_dictionary(struct nspdf_doc *doc,
                      struct cos_stream *stream,
-                     uint64_t *offset_out,
+                     strmoff_t *offset_out,
                      struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    nspdferror res;
+    strmoff_t offset;
     struct cos_object *cosobj;
     struct cos_dictionary_entry *entry;
     struct cos_object *key;
     struct cos_object *value;
-    int res;
 
     offset = *offset_out;
 
@@ -404,10 +426,10 @@ cos_parse_dictionary_error:
 static nspdferror
 cos_parse_list(struct nspdf_doc *doc,
                struct cos_stream *stream,
-               uint64_t *offset_out,
+               strmoff_t *offset_out,
                struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     struct cos_object *cosobj;
     struct cos_array *array;
     struct cos_object *value;
@@ -485,10 +507,10 @@ cos_parse_list(struct nspdf_doc *doc,
  */
 static nspdferror
 cos_parse_name(struct cos_stream *stream,
-               uint64_t *offset_out,
+               strmoff_t *offset_out,
                struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     struct cos_object *cosobj;
     uint8_t c;
     char name[NAME_MAX_LENGTH + 1];
@@ -543,10 +565,10 @@ cos_parse_name(struct cos_stream *stream,
  */
 static nspdferror
 cos_parse_boolean(struct cos_stream *stream,
-                  uint64_t *offset_out,
+                  strmoff_t *offset_out,
                   struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     struct cos_object *cosobj;
     uint8_t c;
     bool value;
@@ -625,10 +647,10 @@ cos_parse_boolean(struct cos_stream *stream,
  */
 static nspdferror
 cos_parse_null(struct cos_stream *stream,
-               uint64_t *offset_out,
+               strmoff_t *offset_out,
                struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     struct cos_object *cosobj;
     uint8_t c;
 
@@ -676,13 +698,13 @@ cos_parse_null(struct cos_stream *stream,
 static nspdferror
 cos_parse_stream(struct nspdf_doc *doc,
                  struct cos_stream *stream_in,
-                 uint64_t *offset_out,
+                 strmoff_t *offset_out,
                  struct cos_object **cosobj_out)
 {
     struct cos_object *cosobj;
     nspdferror res;
     struct cos_object *stream_dict;
-    uint64_t offset;
+    strmoff_t offset;
     struct cos_object *stream_filter;
     struct cos_stream *stream;
     int64_t stream_length;
@@ -811,11 +833,11 @@ cos_parse_stream(struct nspdf_doc *doc,
 static nspdferror
 cos_attempt_parse_reference(struct nspdf_doc *doc,
                             struct cos_stream *stream,
-                            uint64_t *offset_out,
+                            strmoff_t *offset_out,
                             struct cos_object **cosobj_out)
 {
     nspdferror res;
-    uint64_t offset;
+    strmoff_t offset;
     uint8_t c;
     struct cos_object *generation; /* generation object */
 
@@ -992,10 +1014,10 @@ cos_attempt_parse_reference(struct nspdf_doc *doc,
 nspdferror
 cos_parse_object(struct nspdf_doc *doc,
                  struct cos_stream *stream,
-                 uint64_t *offset_out,
+                 strmoff_t *offset_out,
                  struct cos_object **cosobj_out)
 {
-    uint64_t offset;
+    strmoff_t offset;
     nspdferror res;
     struct cos_object *cosobj;
 
@@ -1008,34 +1030,24 @@ cos_parse_object(struct nspdf_doc *doc,
     /* object could be any type use first char to try and select */
     switch (stream_byte(stream, offset)) {
 
-    case '-':
-    case '+':
-    case '.':
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
+    case '-': case '+': case '.': case '0': case '1': case '2': case '3':
+    case '4': case '5': case '6': case '7': case '8': case '9':
         res = cos_parse_number(stream, &offset, &cosobj);
         /* if type is positive integer try to check for reference */
-        if ((res == 0) &&
+        if ((res == NSPDFERROR_OK) &&
             (cosobj->type == COS_TYPE_INT) &&
             (cosobj->u.i > 0)) {
             res = cos_attempt_parse_reference(doc, stream, &offset, &cosobj);
         }
         break;
 
-    case '<':
-        if (stream_byte(stream, offset + 1) == '<') {
-            res = cos_parse_dictionary(doc, stream, &offset, &cosobj);
-        } else {
-            res = cos_parse_hex_string(stream, &offset, &cosobj);
-        }
+    case 't':
+    case 'f':
+        res = cos_parse_boolean(stream, &offset, &cosobj);
+        break;
+
+    case 'n':
+        res = cos_parse_null(stream, &offset, &cosobj);
         break;
 
     case '(':
@@ -1046,20 +1058,16 @@ cos_parse_object(struct nspdf_doc *doc,
         res = cos_parse_name(stream, &offset, &cosobj);
         break;
 
+    case '<':
+        if (stream_byte(stream, offset + 1) == '<') {
+            res = cos_parse_dictionary(doc, stream, &offset, &cosobj);
+        } else {
+            res = cos_parse_hex_string(stream, &offset, &cosobj);
+        }
+        break;
+
     case '[':
         res = cos_parse_list(doc, stream, &offset, &cosobj);
-        break;
-
-    case 't':
-    case 'T':
-    case 'f':
-    case 'F':
-        res = cos_parse_boolean(stream, &offset, &cosobj);
-        break;
-
-    case 'n':
-    case 'N':
-        res = cos_parse_null(stream, &offset, &cosobj);
         break;
 
     default:
@@ -1076,16 +1084,366 @@ cos_parse_object(struct nspdf_doc *doc,
 
 
 static nspdferror
-parse_content_operation(struct nspdf_doc *doc,
-                        struct cos_stream *stream,
-                        unsigned int *offset_out,
-                        struct content_operation *operation_out)
+parse_operator(struct cos_stream *stream,
+               strmoff_t *offset_out,
+               enum content_operator *operator_out)
 {
-    unsigned int offset;
+    nspdferror res;
+    strmoff_t offset;
+    enum content_operator operator;
+    uint8_t c;
 
     offset = *offset_out;
 
-    offset+=stream->length;
+    switch (stream_byte(stream, offset++)) {
+    case 'b':
+        //CONTENT_OP_b
+        //CONTENT_OP_b_
+        break;
+
+    case 'B':
+        operator = CONTENT_OP_B;
+        c = stream_byte(stream, offset);
+        if ((bclass[c] & (BC_WSPC | BC_CMNT) ) == 0) {
+            switch (c) {
+            case '*':
+                operator = CONTENT_OP_B_;
+                offset++;
+                break;
+
+            case 'I':
+                operator = CONTENT_OP_BI;
+                offset++;
+                break;
+
+            case 'T':
+                operator = CONTENT_OP_BT;
+                offset++;
+                break;
+
+            case 'X':
+                operator = CONTENT_OP_BX;
+                offset++;
+                break;
+
+            case 'M':
+                if (stream_byte(stream, offset + 1) == 'C') {
+                    operator = CONTENT_OP_BMC;
+                    offset+=2;
+                }
+                break;
+
+            case 'D':
+                if (stream_byte(stream, offset + 1) == 'C') {
+                    operator = CONTENT_OP_BDC;
+                    offset+=2;
+                }
+                break;
+
+            default:
+                goto parse_operator_nomatch;
+            }
+            c = stream_byte(stream, offset);
+        }
+        break;
+
+    case 'c':
+        //CONTENT_OP_c
+        //CONTENT_OP_cm
+        //CONTENT_OP_cs
+        break;
+
+    case 'C':
+        //CONTENT_OP_CS
+        break;
+
+    case 'd':
+        //CONTENT_OP_d
+        //CONTENT_OP_d0
+        //CONTENT_OP_d1
+        break;
+
+    case 'D':
+        //CONTENT_OP_Do
+        //CONTENT_OP_DP
+        break;
+
+    case 'E':
+        //CONTENT_OP_EI
+        //CONTENT_OP_EMC
+        //CONTENT_OP_ET
+        //CONTENT_OP_EX
+        break;
+
+    case 'f':
+        //CONTENT_OP_f
+        //CONTENT_OP_f_
+        break;
+
+    case 'F':
+        //CONTENT_OP_F
+        break;
+
+    case 'G':
+        //CONTENT_OP_G
+        break;
+
+    case 'g':
+        operator = CONTENT_OP_g;
+        c = stream_byte(stream, offset);
+        if (((bclass[c] & (BC_WSPC | BC_CMNT) ) == 0) && (c == 's')) {
+            operator = CONTENT_OP_gs;
+            offset++;
+        }
+        c = stream_byte(stream, offset);
+        break;
+
+    case 'h':
+        //CONTENT_OP_h
+        break;
+
+    case 'i':
+        //CONTENT_OP_i
+        break;
+
+    case 'I':
+        //CONTENT_OP_ID
+        break;
+
+    case 'j':
+        //CONTENT_OP_j
+        break;
+
+    case 'J':
+        //CONTENT_OP_J
+        break;
+
+    case 'K':
+        operator = CONTENT_OP_K;
+        c = stream_byte(stream, offset);
+        break;
+
+    case 'k':
+        operator = CONTENT_OP_k;
+        c = stream_byte(stream, offset);
+        break;
+
+    case 'l':
+        operator = CONTENT_OP_l;
+        c = stream_byte(stream, offset);
+        break;
+
+    case 'm':
+        break;
+
+    case 'M':
+        break;
+
+    case 'n':
+        break;
+
+    case 'q':
+        break;
+
+    case 'Q':
+        break;
+
+    case 'r':
+        break;
+
+    case 'R':
+        break;
+
+    case 's':
+        break;
+
+    case 'S':
+        break;
+
+    case 'T':
+        switch (stream_byte(stream, offset++)) {
+        case '*':
+            operator = CONTENT_OP_T_;
+            break;
+
+        case 'c':
+            operator = CONTENT_OP_Tc;
+            break;
+
+        case 'd':
+            operator = CONTENT_OP_Td;
+            break;
+
+        case 'D':
+            operator = CONTENT_OP_TD;
+            break;
+
+        case 'f':
+            operator = CONTENT_OP_Tf;
+            break;
+
+        case 'j':
+            operator = CONTENT_OP_Tj;
+            break;
+
+        case 'J':
+            operator = CONTENT_OP_TJ;
+            break;
+
+        case 'L':
+            operator = CONTENT_OP_TL;
+            break;
+
+        case 'm':
+            operator = CONTENT_OP_Tm;
+            break;
+
+        case 'r':
+            operator = CONTENT_OP_Tr;
+            break;
+
+        case 's':
+            operator = CONTENT_OP_Ts;
+            break;
+
+        case 'w':
+            operator = CONTENT_OP_Tw;
+            break;
+
+        case 'z':
+            operator = CONTENT_OP_Tz;
+            break;
+
+        default:
+            goto parse_operator_nomatch;
+        }
+
+        c = stream_byte(stream, offset);
+        break;
+
+    case 'v':
+        break;
+
+    case 'w':
+        break;
+
+    case 'W':
+        break;
+
+    case 'Y':
+        break;
+
+    case '\'':
+        break;
+
+    case '"':
+        break;
+
+    default:
+        goto parse_operator_nomatch;
+    }
+
+    /* matched prefix must be followed by a space */
+    if ((bclass[c] & (BC_WSPC | BC_CMNT) ) != 0) {
+        res = nspdf__stream_skip_ws(stream, &offset);
+        if (res == NSPDFERROR_OK) {
+            *operator_out = operator;
+            *offset_out = offset;
+        }
+        return res;
+    }
+
+parse_operator_nomatch:
+    return NSPDFERROR_SYNTAX;
+}
+
+#define MAX_OPERAND_COUNT 32
+
+static nspdferror
+parse_content_operation(struct nspdf_doc *doc,
+                        struct cos_stream *stream,
+                        strmoff_t *offset_out,
+                        struct content_operation *operation_out)
+{
+    strmoff_t offset;
+    nspdferror res;
+    enum content_operator operator;
+    struct cos_object *operands[MAX_OPERAND_COUNT];
+    unsigned int operand_idx = 0;
+
+    offset = *offset_out;
+
+    res = parse_operator(stream, &offset, &operator);
+    while (res == NSPDFERROR_SYNTAX) {
+        /* was not an operator so check for what else it could have been */
+        if (operand_idx >= MAX_OPERAND_COUNT) {
+            /** \todo free any stacked operands */
+            printf("too many operands\n");
+            return NSPDFERROR_SYNTAX;
+        }
+
+        switch (stream_byte(stream, offset)) {
+
+        case '-': case '+': case '.': case '0': case '1': case '2': case '3':
+        case '4': case '5': case '6': case '7': case '8': case '9':
+            res = cos_parse_number(stream, &offset, &operands[operand_idx]);
+            break;
+
+        case 't':
+        case 'f':
+            res = cos_parse_boolean(stream, &offset, &operands[operand_idx]);
+            break;
+
+        case 'n':
+            res = cos_parse_null(stream, &offset, &operands[operand_idx]);
+            break;
+
+        case '(':
+            res = cos_parse_string(stream, &offset, &operands[operand_idx]);
+            break;
+
+        case '/':
+            res = cos_parse_name(stream, &offset, &operands[operand_idx]);
+            break;
+
+        case '[':
+            res = cos_parse_list(doc, stream, &offset, &operands[operand_idx]);
+            break;
+
+        case '<':
+            if (stream_byte(stream, offset + 1) == '<') {
+                res = cos_parse_dictionary(doc,
+                                           stream,
+                                           &offset,
+                                           &operands[operand_idx]);
+            } else {
+                res = cos_parse_hex_string(stream,
+                                           &offset,
+                                           &operands[operand_idx]);
+            }
+            break;
+
+        default:
+            printf("unknown operand type\n");
+            res = NSPDFERROR_SYNTAX; /* syntax error */
+        }
+
+        if (res != NSPDFERROR_OK) {
+            /* parse error */
+            /** \todo free any stacked operands */
+            printf("operand parse failed at %c\n",
+                   stream_byte(stream, offset));
+            return res;
+        }
+
+        /* move to next operand */
+        operand_idx++;
+
+        res = parse_operator(stream, &offset, &operator);
+    }
+
+    operation_out->operator = operator;
+    printf("returning operator %d with %d operands\n", operator, operand_idx);
 
     *offset_out = offset;
     return NSPDFERROR_OK;
@@ -1098,9 +1456,9 @@ cos_parse_content_stream(struct nspdf_doc *doc,
 {
     nspdferror res;
     struct cos_object *cosobj;
-    unsigned int offset;
+    strmoff_t offset;
 
-    //printf("%.*s", (int)stream->length, stream->data);
+    printf("%.*s", (int)stream->length, stream->data);
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
