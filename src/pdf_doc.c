@@ -23,19 +23,26 @@ nspdferror
 nspdf__stream_skip_ws(struct cos_stream *stream, strmoff_t *offset)
 {
     uint8_t c;
-    /* TODO sort out keeping offset in range */
+
+    if ((*offset) >= stream->length) {
+        return NSPDFERROR_OK;
+    }
+
     c = stream_byte(stream, *offset);
-    while ((bclass[c] & (BC_WSPC | BC_CMNT) ) != 0) {
+    while (((*offset) < stream->length) &&
+           ((bclass[c] & (BC_WSPC | BC_CMNT) ) != 0)) {
         (*offset)++;
         /* skip comments */
-        if ((bclass[c] & BC_CMNT) != 0) {
+        if (((*offset) < stream->length) &&
+            ((bclass[c] & BC_CMNT) != 0)) {
             c = stream_byte(stream, *offset);
-            while ((bclass[c] & BC_EOLM ) == 0) {
+            while ((*offset < stream->length) &&
+                   ((bclass[c] & BC_EOLM ) == 0)) {
                 (*offset)++;
-                c = stream_byte(stream, *offset);
+                c = stream_byte(stream, (*offset));
             }
         }
-        c = stream_byte(stream, *offset);
+        c = stream_byte(stream, (*offset));
     }
     return NSPDFERROR_OK;
 }

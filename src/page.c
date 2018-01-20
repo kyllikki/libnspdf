@@ -146,62 +146,20 @@ nspdf_page_count(struct nspdf_doc *doc, unsigned int *pages_out)
     return NSPDFERROR_OK;
 }
 
-static nspdferror
-nspdf__render_content_stream(struct nspdf_doc *doc,
-                             struct page_table_entry *page_entry,
-                             struct cos_object *content_entry)
-{
-    nspdferror res;
-    struct cos_content *content_operations;
-
-    res = cos_get_content(doc, content_entry, &content_operations);
-    if (res == NSPDFERROR_OK) {
-        printf("%p\n", content_operations);
-    }
-
-    return res;
-}
 
 /* exported interface documented in nspdf/page.h */
 nspdferror
 nspdf_page_render(struct nspdf_doc *doc, unsigned int page_number)
 {
     struct page_table_entry *page_entry;
-    struct cos_object *content_array;
+    struct cos_content *page_content; /* page operations array */
     nspdferror res;
 
     page_entry = doc->page_table + page_number;
 
-    /* contents may be an array of stream objects or just a single one */
-    res = cos_get_array(doc, page_entry->contents, &content_array);
+    res = cos_get_content(doc, page_entry->contents, &page_content);
     if (res == NSPDFERROR_OK) {
-        unsigned int content_stream_count;
-        unsigned int content_stream_index;
-
-        res = cos_get_array_size(doc, content_array, &content_stream_count);
-        if (res != NSPDFERROR_OK) {
-            return res;
-        }
-        for (content_stream_index = 0;
-             content_stream_index < content_stream_count;
-             content_stream_index++) {
-            struct cos_object *content_entry;
-            res = cos_get_array_value(doc,
-                                content_array,
-                                content_stream_index,
-                                &content_entry);
-            if (res != NSPDFERROR_OK) {
-                break;
-            }
-
-            res = nspdf__render_content_stream(doc, page_entry, content_entry);
-            if (res != NSPDFERROR_OK) {
-                break;
-            }
-        }
-    } else if (res == NSPDFERROR_TYPE) {
-        res = nspdf__render_content_stream(doc, page_entry, page_entry->contents);
+        printf("%p\n", page_content);
     }
-
     return res;
 }

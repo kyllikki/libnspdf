@@ -30,6 +30,7 @@ nspdferror cos_parse_object(struct nspdf_doc *doc, struct cos_stream *stream, st
 /**
  * Parse content stream into content operations object
  */
-nspdferror cos_parse_content_stream(struct nspdf_doc *doc, struct cos_stream *stream, struct cos_object **content_out);
+nspdferror cos_parse_content_streams(struct nspdf_doc *doc, struct cos_stream **streams, unsigned int stream_count, struct cos_object **content_out);
+
 
 #endif

@@ -386,36 +386,111 @@ cos_get_object(struct nspdf_doc *doc,
     return res;
 }
 
+/*
+ * exported interface documented in cos_object.h
+ *
+ * slightly different behaviour to other getters:
 
+ * - This getter can be passed an object pointer to a synthetic parsed content
+ *     stream object in which case it returns that objects content operation
+ *     list.
+ *
+ * - Alternatively it can be passed a single indirect object reference to a
+ *    content stream which will be processed into a filtered stream and then
+ *    converted into a parsed content stream which replaces the passed
+ *    object. The underlying filtered streams will then be freed.
+ *
+ * - An array of indirect object references to content streams all of which
+ *    will be converted as if a single stream of tokens and the result handled
+ *    as per the single reference case.
+ */
 nspdferror
 cos_get_content(struct nspdf_doc *doc,
                 struct cos_object *cobj,
                 struct cos_content **content_out)
 {
     nspdferror res;
-    struct cos_object *content_obj;
+    struct cos_object **references;
+    unsigned int reference_count;
+    struct cos_stream **streams;
+    unsigned int index;
+    struct cos_object *content_obj; /* parsed content object */
+    struct cos_object tmpobj;
 
-    res = nspdf__xref_get_referenced(doc, &cobj);
-    if (res == NSPDFERROR_OK) {
-        if (cobj->type == COS_TYPE_STREAM) {
-            res = cos_parse_content_stream(doc, cobj->u.stream, &content_obj);
-            if (res == NSPDFERROR_OK) {
-                /* replace stream object with parsed content operations */
-                struct cos_object tmpobj;
-                tmpobj = *cobj;
-                *cobj = *content_obj;
-                *content_obj = tmpobj;
-                cos_free_object(content_obj);
-
-                *content_out = cobj->u.content;
-            }
-        } else if (cobj->type == COS_TYPE_CONTENT) {
-            *content_out = cobj->u.content;
-        } else {
-            res = NSPDFERROR_TYPE;
+    /* already parsed the content stream */
+    if (cobj->type == COS_TYPE_CONTENT) {
+        *content_out = cobj->u.content;
+    } else if (cobj->type == COS_TYPE_REFERENCE) {
+        /* single reference */
+        reference_count = 1;
+        references = calloc(reference_count, sizeof(struct cos_object *));
+        if (references == NULL) {
+            return NSPDFERROR_NOMEM;
         }
+
+        *references = cobj;
+    } else if (cobj->type == COS_TYPE_ARRAY) {
+        /* array of references */
+        reference_count = cobj->u.array->length;
+        references = malloc(reference_count * sizeof(struct cos_object *));
+        if (references == NULL) {
+            return NSPDFERROR_NOMEM;
+        }
+        memcpy(references, cobj->u.array->values, reference_count * sizeof(struct cos_object *));
+        /* check all objects in array are references */
+        for (index = 0; index < reference_count ; index++) {
+            if ((*(references + index))->type != COS_TYPE_REFERENCE) {
+                free(references);
+                return NSPDFERROR_TYPE;
+            }
+        }
+    } else {
+        return NSPDFERROR_TYPE;
     }
-    return res;
+
+    /* obtain array of streams */
+    streams = malloc(reference_count * sizeof(struct cos_stream *));
+    if (streams == NULL) {
+        free(references);
+        return NSPDFERROR_TYPE;
+    }
+
+    for (index = 0; index < reference_count ; index++) {
+        struct cos_object *stream_obj;
+
+        stream_obj = *(references + index);
+        res = nspdf__xref_get_referenced(doc, &stream_obj);
+        if (res != NSPDFERROR_OK) {
+            free(references);
+            free(streams);
+            return res;
+        }
+        if (stream_obj->type != COS_TYPE_STREAM) {
+            free(references);
+            free(streams);
+            return NSPDFERROR_TYPE;
+        }
+        *(streams + index) = stream_obj->u.stream;;
+    }
+
+    res = cos_parse_content_streams(doc, streams, reference_count, &content_obj);
+    if (res != NSPDFERROR_OK) {
+        free(references);
+        free(streams);
+        return res;
+    }
+
+    /* replace passed object with parsed content operations object */
+    tmpobj = *cobj;
+    *cobj = *content_obj;
+    *content_obj = tmpobj;
+    cos_free_object(content_obj);
+
+    /** \todo call nspdf__xref_free_referenced(doc, *(references + index)); to free up storage associated with already parsed streams */
+
+    *content_out = cobj->u.content;
+
+    return NSPDFERROR_OK;
 }
 
 /*
