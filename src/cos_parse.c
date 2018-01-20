@@ -74,11 +74,22 @@ cos_parse_number(struct cos_stream *stream,
     strmoff_t offset; /* current offset of source data */
     unsigned int point;
     bool real = false;
+    bool neg = false;
 
     offset = *offset_out;
 
+    c = stream_byte(stream, offset);
+    if (c == '-') {
+        neg = true;
+        offset++;
+    } else if (c == '+') {
+        neg = false;
+        offset++;
+    }
+
     for (len = 0; len < sizeof(num); len++) {
         c = stream_byte(stream, offset);
+
         if (c == '.') {
             real = true;
             point = len;
@@ -118,11 +129,19 @@ cos_parse_number(struct cos_stream *stream,
                     div = div * 10;
                 }
                 cosobj->type = COS_TYPE_REAL;
-                cosobj->u.real = (float)result / div;
-                printf("real %d %f\n", result, cosobj->u.real);
+                if (neg) {
+                    cosobj->u.real = -((float)result / div);
+                } else {
+                    cosobj->u.real = (float)result / div;
+                }
+                //printf("real %d %f\n", result, cosobj->u.real);
             } else {
                 cosobj->type = COS_TYPE_INT;
-                cosobj->u.i = result;
+                if (neg) {
+                    cosobj->u.i = -result;
+                } else {
+                    cosobj->u.i = result;
+                }
             }
 
             *cosobj_out = cosobj;
@@ -1092,269 +1111,132 @@ parse_operator(struct cos_stream *stream,
     strmoff_t offset;
     enum content_operator operator;
     uint8_t c;
+    unsigned int lookup;
 
     offset = *offset_out;
 
-    switch (stream_byte(stream, offset++)) {
-    case 'b':
-        //CONTENT_OP_b
-        //CONTENT_OP_b_
-        break;
+    /* first char */
+    c = stream_byte(stream, offset);
+    if ((bclass[c] & (BC_WSPC | BC_CMNT) ) != 0) {
+        /* must have at least one non-whitespace character */
+        return NSPDFERROR_SYNTAX;
+    }
+    lookup = c;
+    offset++;
+    /* possible second char */
+    c = stream_byte(stream, offset);
+    if ((bclass[c] & (BC_WSPC | BC_CMNT) ) == 0) {
+        lookup = (lookup << 8) | c;
+        offset++;
 
-    case 'B':
-        operator = CONTENT_OP_B;
+        /* possible third char */
         c = stream_byte(stream, offset);
         if ((bclass[c] & (BC_WSPC | BC_CMNT) ) == 0) {
-            switch (c) {
-            case '*':
-                operator = CONTENT_OP_B_;
-                offset++;
-                break;
-
-            case 'I':
-                operator = CONTENT_OP_BI;
-                offset++;
-                break;
-
-            case 'T':
-                operator = CONTENT_OP_BT;
-                offset++;
-                break;
-
-            case 'X':
-                operator = CONTENT_OP_BX;
-                offset++;
-                break;
-
-            case 'M':
-                if (stream_byte(stream, offset + 1) == 'C') {
-                    operator = CONTENT_OP_BMC;
-                    offset+=2;
-                }
-                break;
-
-            case 'D':
-                if (stream_byte(stream, offset + 1) == 'C') {
-                    operator = CONTENT_OP_BDC;
-                    offset+=2;
-                }
-                break;
-
-            default:
-                goto parse_operator_nomatch;
-            }
-            c = stream_byte(stream, offset);
-        }
-        break;
-
-    case 'c':
-        //CONTENT_OP_c
-        //CONTENT_OP_cm
-        //CONTENT_OP_cs
-        break;
-
-    case 'C':
-        //CONTENT_OP_CS
-        break;
-
-    case 'd':
-        //CONTENT_OP_d
-        //CONTENT_OP_d0
-        //CONTENT_OP_d1
-        break;
-
-    case 'D':
-        //CONTENT_OP_Do
-        //CONTENT_OP_DP
-        break;
-
-    case 'E':
-        //CONTENT_OP_EI
-        //CONTENT_OP_EMC
-        //CONTENT_OP_ET
-        //CONTENT_OP_EX
-        break;
-
-    case 'f':
-        //CONTENT_OP_f
-        //CONTENT_OP_f_
-        break;
-
-    case 'F':
-        //CONTENT_OP_F
-        break;
-
-    case 'G':
-        //CONTENT_OP_G
-        break;
-
-    case 'g':
-        operator = CONTENT_OP_g;
-        c = stream_byte(stream, offset);
-        if (((bclass[c] & (BC_WSPC | BC_CMNT) ) == 0) && (c == 's')) {
-            operator = CONTENT_OP_gs;
+            lookup = (lookup << 8) | c;
             offset++;
+
+            /* fourth char must be whitespace */
+            c = stream_byte(stream, offset);
+            if ((bclass[c] & (BC_WSPC | BC_CMNT) ) == 0) {
+                return NSPDFERROR_SYNTAX;
+            }
         }
-        c = stream_byte(stream, offset);
-        break;
-
-    case 'h':
-        //CONTENT_OP_h
-        break;
-
-    case 'i':
-        //CONTENT_OP_i
-        break;
-
-    case 'I':
-        //CONTENT_OP_ID
-        break;
-
-    case 'j':
-        //CONTENT_OP_j
-        break;
-
-    case 'J':
-        //CONTENT_OP_J
-        break;
-
-    case 'K':
-        operator = CONTENT_OP_K;
-        c = stream_byte(stream, offset);
-        break;
-
-    case 'k':
-        operator = CONTENT_OP_k;
-        c = stream_byte(stream, offset);
-        break;
-
-    case 'l':
-        operator = CONTENT_OP_l;
-        c = stream_byte(stream, offset);
-        break;
-
-    case 'm':
-        break;
-
-    case 'M':
-        break;
-
-    case 'n':
-        break;
-
-    case 'q':
-        break;
-
-    case 'Q':
-        break;
-
-    case 'r':
-        break;
-
-    case 'R':
-        break;
-
-    case 's':
-        break;
-
-    case 'S':
-        break;
-
-    case 'T':
-        switch (stream_byte(stream, offset++)) {
-        case '*':
-            operator = CONTENT_OP_T_;
-            break;
-
-        case 'c':
-            operator = CONTENT_OP_Tc;
-            break;
-
-        case 'd':
-            operator = CONTENT_OP_Td;
-            break;
-
-        case 'D':
-            operator = CONTENT_OP_TD;
-            break;
-
-        case 'f':
-            operator = CONTENT_OP_Tf;
-            break;
-
-        case 'j':
-            operator = CONTENT_OP_Tj;
-            break;
-
-        case 'J':
-            operator = CONTENT_OP_TJ;
-            break;
-
-        case 'L':
-            operator = CONTENT_OP_TL;
-            break;
-
-        case 'm':
-            operator = CONTENT_OP_Tm;
-            break;
-
-        case 'r':
-            operator = CONTENT_OP_Tr;
-            break;
-
-        case 's':
-            operator = CONTENT_OP_Ts;
-            break;
-
-        case 'w':
-            operator = CONTENT_OP_Tw;
-            break;
-
-        case 'z':
-            operator = CONTENT_OP_Tz;
-            break;
-
-        default:
-            goto parse_operator_nomatch;
-        }
-
-        c = stream_byte(stream, offset);
-        break;
-
-    case 'v':
-        break;
-
-    case 'w':
-        break;
-
-    case 'W':
-        break;
-
-    case 'Y':
-        break;
-
-    case '\'':
-        break;
-
-    case '"':
-        break;
-
-    default:
-        goto parse_operator_nomatch;
     }
 
-    /* matched prefix must be followed by a space */
-    if ((bclass[c] & (BC_WSPC | BC_CMNT) ) != 0) {
-        res = nspdf__stream_skip_ws(stream, &offset);
-        if (res == NSPDFERROR_OK) {
-            *operator_out = operator;
-            *offset_out = offset;
-        }
+    res = nspdf__stream_skip_ws(stream, &offset);
+    if (res != NSPDFERROR_OK) {
         return res;
     }
 
-parse_operator_nomatch:
-    return NSPDFERROR_SYNTAX;
+    switch (lookup) {
+    case '"': operator = CONTENT_OP___;
+    case '\'': operator = CONTENT_OP__; break;
+    case 'B': operator = CONTENT_OP_B; break;
+    case 'F': operator = CONTENT_OP_F; break;
+    case 'G': operator = CONTENT_OP_G; break;
+    case 'J': operator = CONTENT_OP_J; break;
+    case 'K': operator = CONTENT_OP_K; break;
+    case 'M': operator = CONTENT_OP_M; break;
+    case 'Q': operator = CONTENT_OP_Q; break;
+    case 'S': operator = CONTENT_OP_S; break;
+    case 'W': operator = CONTENT_OP_W; break;
+    case 'b': operator = CONTENT_OP_b; break;
+    case 'c': operator = CONTENT_OP_c; break;
+    case 'd': operator = CONTENT_OP_d; break;
+    case 'f': operator = CONTENT_OP_f; break;
+    case 'g': operator = CONTENT_OP_g; break;
+    case 'h': operator = CONTENT_OP_h; break;
+    case 'i': operator = CONTENT_OP_i; break;
+    case 'j': operator = CONTENT_OP_j; break;
+    case 'k': operator = CONTENT_OP_k; break;
+    case 'l': operator = CONTENT_OP_l; break;
+    case 'm': operator = CONTENT_OP_m; break;
+    case 'n': operator = CONTENT_OP_n; break;
+    case 'q': operator = CONTENT_OP_q; break;
+    case 's': operator = CONTENT_OP_s; break;
+    case 'v': operator = CONTENT_OP_v; break;
+    case 'w': operator = CONTENT_OP_w; break;
+    case 'y': operator = CONTENT_OP_y; break;
+
+    case (('B' << 8) | '*'): operator = CONTENT_OP_B_; break;
+    case (('T' << 8) | '*'): operator = CONTENT_OP_T_; break;
+    case (('W' << 8) | '*'): operator = CONTENT_OP_W_; break;
+
+    case (('B' << 8) | 'I'): operator = CONTENT_OP_BI; break;
+    case (('B' << 8) | 'T'): operator = CONTENT_OP_BT; break;
+    case (('B' << 8) | 'X'): operator = CONTENT_OP_BX; break;
+    case (('C' << 8) | 'S'): operator = CONTENT_OP_CS; break;
+    case (('D' << 8) | 'P'): operator = CONTENT_OP_DP; break;
+    case (('E' << 8) | 'I'): operator = CONTENT_OP_EI; break;
+    case (('E' << 8) | 'T'): operator = CONTENT_OP_ET; break;
+    case (('E' << 8) | 'X'): operator = CONTENT_OP_EX; break;
+    case (('I' << 8) | 'D'): operator = CONTENT_OP_ID; break;
+    case (('M' << 8) | 'P'): operator = CONTENT_OP_MP; break;
+    case (('R' << 8) | 'G'): operator = CONTENT_OP_RG; break;
+    case (('S' << 8) | 'S'): operator = CONTENT_OP_SC; break;
+    case (('T' << 8) | 'D'): operator = CONTENT_OP_TD; break;
+    case (('T' << 8) | 'J'): operator = CONTENT_OP_TJ; break;
+    case (('T' << 8) | 'L'): operator = CONTENT_OP_TL; break;
+
+    case (('D' << 8) | 'o'): operator = CONTENT_OP_Do; break;
+    case (('T' << 8) | 'c'): operator = CONTENT_OP_Tc; break;
+    case (('T' << 8) | 'd'): operator = CONTENT_OP_Td; break;
+    case (('T' << 8) | 'f'): operator = CONTENT_OP_Tf; break;
+    case (('T' << 8) | 'j'): operator = CONTENT_OP_Tj; break;
+    case (('T' << 8) | 'm'): operator = CONTENT_OP_Tm; break;
+    case (('T' << 8) | 'r'): operator = CONTENT_OP_Tr; break;
+    case (('T' << 8) | 's'): operator = CONTENT_OP_Ts; break;
+    case (('T' << 8) | 'w'): operator = CONTENT_OP_Tw; break;
+    case (('T' << 8) | 'z'): operator = CONTENT_OP_Tz; break;
+
+    case (('b' << 8) | '*'): operator = CONTENT_OP_b_; break;
+    case (('f' << 8) | '*'): operator = CONTENT_OP_f_; break;
+    case (('d' << 8) | '0'): operator = CONTENT_OP_d0; break;
+    case (('d' << 8) | '1'): operator = CONTENT_OP_d1; break;
+
+    case (('c' << 8) | 'm'): operator = CONTENT_OP_cm; break;
+    case (('c' << 8) | 's'): operator = CONTENT_OP_cs; break;
+    case (('g' << 8) | 's'): operator = CONTENT_OP_gs; break;
+    case (('r' << 8) | 'e'): operator = CONTENT_OP_re; break;
+    case (('r' << 8) | 'g'): operator = CONTENT_OP_rg; break;
+    case (('r' << 8) | 'i'): operator = CONTENT_OP_ri; break;
+    case (('s' << 8) | 'c'): operator = CONTENT_OP_sc; break;
+    case (('s' << 8) | 'h'): operator = CONTENT_OP_sh; break;
+
+    case (('B' << 16) | (('D' << 8) | 'C')): operator = CONTENT_OP_BDC; break;
+    case (('B' << 16) | (('M' << 8) | 'C')): operator = CONTENT_OP_BMC; break;
+    case (('E' << 16) | (('M' << 8) | 'C')): operator = CONTENT_OP_EMC; break;
+    case (('S' << 16) | (('C' << 8) | 'N')): operator = CONTENT_OP_SCN; break;
+    case (('s' << 16) | (('c' << 8) | 'n')): operator = CONTENT_OP_scn; break;
+
+    default:
+        return NSPDFERROR_SYNTAX;
+    }
+
+    *operator_out = operator;
+    *offset_out = offset;
+
+    return NSPDFERROR_OK;
 }
 
 #define MAX_OPERAND_COUNT 32
@@ -1443,7 +1325,7 @@ parse_content_operation(struct nspdf_doc *doc,
     }
 
     operation_out->operator = operator;
-    printf("returning operator %d with %d operands\n", operator, operand_idx);
+    //printf("returning operator %d with %d operands\n", operator, operand_idx);
 
     *offset_out = offset;
     return NSPDFERROR_OK;
@@ -1458,7 +1340,7 @@ cos_parse_content_stream(struct nspdf_doc *doc,
     struct cos_object *cosobj;
     strmoff_t offset;
 
-    printf("%.*s", (int)stream->length, stream->data);
+    //printf("%.*s", (int)stream->length, stream->data);
 
     cosobj = calloc(1, sizeof(struct cos_object));
     if (cosobj == NULL) {
@@ -1468,12 +1350,17 @@ cos_parse_content_stream(struct nspdf_doc *doc,
 
     cosobj->u.content = calloc(1, sizeof (struct cos_content));
     if (cosobj->u.content == NULL) {
+        res = NSPDFERROR_NOMEM;
         goto cos_parse_content_stream_error;
-        cos_free_object(cosobj);
-        return NSPDFERROR_NOMEM;
-    }
+     }
 
     offset = 0;
+
+    /* skip any leading whitespace */
+    res = nspdf__stream_skip_ws(stream, &offset);
+    if (res != NSPDFERROR_OK) {
+        goto cos_parse_content_stream_error;
+    }
 
     while (offset < stream->length) {
         struct content_operation cop;
