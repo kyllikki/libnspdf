@@ -160,6 +160,11 @@ nspdf__xref_get_referenced(struct nspdf_doc *doc, struct cos_object **cobj_out)
         return NSPDFERROR_OK;
     }
 
+    if (doc == NULL) {
+        /* a reference with no document to dereference against */
+        return NSPDFERROR_REFERENCE;
+    }
+
     entry = doc->xref_table + cobj->u.reference->id;
 
     /* check if referenced object is in range and exists. return null object if

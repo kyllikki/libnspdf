@@ -25,6 +25,7 @@ typedef enum {
     NSPDFERROR_NOTFOUND, /**< key not found */
     NSPDFERROR_FORMAT, /**< objects do not cornform to expected format */
     NSPDFERROR_INCOMPLETE, /**< operation was not completed */
+    NSPDFERROR_REFERENCE, /**< unable to dereference object. */
 } nspdferror;
 
 #endif
