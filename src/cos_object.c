@@ -29,7 +29,7 @@ nspdferror cos_free_object(struct cos_object *cos_obj)
 
     switch (cos_obj->type) {
     case COS_TYPE_NAME:
-        free(cos_obj->u.n);
+        free(cos_obj->u.name);
         break;
 
     case COS_TYPE_STRING:
@@ -92,7 +92,7 @@ cos_extract_dictionary_value(struct cos_object *dict,
     prev = &dict->u.dictionary;
     entry = *prev;
     while (entry != NULL) {
-        if (strcmp(entry->key->u.n, key) == 0) {
+        if (strcmp(entry->key->u.name, key) == 0) {
             *value_out = entry->value;
             *prev = entry->next;
             cos_free_object(entry->key);
@@ -127,7 +127,7 @@ cos_get_dictionary_value(struct nspdf_doc *doc,
 
             entry = dict->u.dictionary;
             while (entry != NULL) {
-                if (strcmp(entry->key->u.n, key) == 0) {
+                if (strcmp(entry->key->u.name, key) == 0) {
                     *value_out = entry->value;
                     res = NSPDFERROR_OK;
                     break;
@@ -275,6 +275,26 @@ cos_get_int(struct nspdf_doc *doc,
 }
 
 nspdferror
+cos_get_number(struct nspdf_doc *doc,
+               struct cos_object *cobj,
+               float *value_out)
+{
+    nspdferror res;
+
+    res = nspdf__xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if (cobj->type == COS_TYPE_INT) {
+            *value_out = (float)cobj->u.i;
+        } else if (cobj->type == COS_TYPE_REAL) {
+            *value_out = cobj->u.real;
+        } else {
+            res = NSPDFERROR_TYPE;
+        }
+    }
+    return res;
+}
+
+nspdferror
 cos_get_name(struct nspdf_doc *doc,
             struct cos_object *cobj,
             const char **value_out)
@@ -286,7 +306,7 @@ cos_get_name(struct nspdf_doc *doc,
         if (cobj->type != COS_TYPE_NAME) {
             res = NSPDFERROR_TYPE;
         } else {
-            *value_out = cobj->u.n;
+            *value_out = cobj->u.name;
         }
     }
     return res;

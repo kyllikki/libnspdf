@@ -101,7 +101,7 @@ struct cos_object {
         float real;
 
         /** name */
-        char *n;
+        char *name;
 
         /** string */
         struct cos_string *s;
@@ -198,6 +198,21 @@ nspdferror cos_get_array_dictionary(struct nspdf_doc *doc, struct cos_object *ar
  *         NSERROR_TYPE if the \p cobj is not an integer
  */
 nspdferror cos_get_int(struct nspdf_doc *doc, struct cos_object *cobj, int64_t *value_out);
+
+/**
+ * get the float value of a cos object.
+ *
+ * Get the value from a cos object, if the object is an object reference it
+ *  will be dereferenced first. The dereferencing will parse any previously
+ *  unreferenced indirect objects as required.
+ *
+ * \param doc The document the cos object belongs to.
+ * \param cobj A cos object of integer type.
+ * \param value_out The result value.
+ * \return NSERROR_OK and \p value_out updated,
+ *         NSERROR_TYPE if the \p cobj is not an integer
+ */
+nspdferror cos_get_number(struct nspdf_doc *doc, struct cos_object *cobj, float *value_out);
 
 /**
  * get the name value of a cos object.

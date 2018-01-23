@@ -569,7 +569,7 @@ cos_parse_name(struct cos_stream *stream,
     }
 
     cosobj->type = COS_TYPE_NAME;
-    cosobj->u.n = strdup(name);
+    cosobj->u.name = strdup(name);
 
     *cosobj_out = cosobj;
 
