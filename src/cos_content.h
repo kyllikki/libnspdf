@@ -12,8 +12,8 @@
  * NetSurf PDF library parsed content stream
  */
 
-#ifndef NSPDF__CONTENT_H_
-#define NSPDF__CONTENT_H_
+#ifndef NSPDF__COS_CONTENT_H_
+#define NSPDF__COS_CONTENT_H_
 
 /**
  * content operator
@@ -222,5 +222,11 @@ struct content_operation
         } namenumber;
     } u;
 };
+
+/**
+ * convert an operator and operand list into an operation
+ */
+nspdferror nspdf__cos_content_convert(enum content_operator operator, struct cos_object **operands, unsigned int *operand_idx, struct content_operation *operation_out);
+
 
 #endif
