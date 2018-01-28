@@ -21,6 +21,102 @@
 #include "cos_parse.h"
 #include "pdf_doc.h"
 
+static nspdferror cos_dump_object(const char *fmt, struct cos_object *cos_obj)
+{
+    printf("%s\n", fmt);
+    switch (cos_obj->type) {
+    case COS_TYPE_NAMETREE:
+        printf("  type = COS_TYPE_NAMETREE\n");
+        break;
+
+    case COS_TYPE_REFERENCE:
+        printf("  type = COS_TYPE_REFERENCE\n"
+               "  u.reference->id = %lu\n"
+               "  u.reference->generation = %lu\n",
+               cos_obj->u.reference->id,
+               cos_obj->u.reference->generation);
+        break;
+
+    case COS_TYPE_NULL:
+        printf("  type = COS_TYPE_NULL\n");
+        break;
+
+    case COS_TYPE_CONTENT:
+        printf("  type = COS_TYPE_CONTENT\n"
+               "  u.content->length = %d\n"
+               "  u.content->alloc = %d\n"
+               "  u.content->operations = %p\n",
+               cos_obj->u.content->length,
+               cos_obj->u.content->alloc,
+               cos_obj->u.content->operations);
+        break;
+
+    case COS_TYPE_BOOL:
+        printf("  type = COS_TYPE_BOOL\n  u.b = %s\n",
+               cos_obj->u.b ? "true" : "false");
+        break;
+
+    case COS_TYPE_INT:
+        printf("  type = COS_TYPE_INT\n  u.i = %ld\n", cos_obj->u.i);
+        break;
+
+    case COS_TYPE_REAL:
+        printf("  type = COS_TYPE_REAL\n  u.real = %f\n", cos_obj->u.real);
+        break;
+
+    case COS_TYPE_NAME:
+        printf("  type = COS_TYPE_NAME\n  u.name = %s\n", cos_obj->u.name);
+        break;
+
+    case COS_TYPE_STRING:
+        printf("  type = COS_TYPE_STRING\n");
+        //free(cos_obj->u.s->data);
+        //free(cos_obj->u.s);
+        break;
+
+    case COS_TYPE_DICTIONARY:
+        printf("  type = COS_TYPE_DICTIONARY\n");
+        /*
+          dentry = cos_obj->u.dictionary;
+          while (dentry != NULL) {
+          struct cos_dictionary_entry *odentry;
+
+          cos_free_object(dentry->key);
+          cos_free_object(dentry->value);
+
+          odentry = dentry;
+          dentry = dentry->next;
+          free(odentry);
+          }
+        */
+        break;
+
+    case COS_TYPE_ARRAY:
+        printf("  type = COS_TYPE_ARRAY\n");
+        /*
+          if (cos_obj->u.array->alloc > 0) {
+          for (aentry = 0; aentry < cos_obj->u.array->length; aentry++) {
+          cos_free_object(*(cos_obj->u.array->values + aentry));
+          }
+          free(cos_obj->u.array->values);
+          }
+          free(cos_obj->u.array);
+        */
+        break;
+
+    case COS_TYPE_STREAM:
+        printf("  type = COS_TYPE_STREAM\n");
+        /*
+          free(cos_obj->u.stream);
+        */
+        break;
+
+    }
+
+
+    return NSPDFERROR_OK;
+
+}
 
 nspdferror cos_free_object(struct cos_object *cos_obj)
 {
@@ -173,9 +269,9 @@ cos_get_dictionary_name(struct nspdf_doc *doc,
 
 nspdferror
 cos_get_dictionary_string(struct nspdf_doc *doc,
-                        struct cos_object *dict,
-                        const char *key,
-                        struct cos_string **string_out)
+                          struct cos_object *dict,
+                          const char *key,
+                          struct cos_string **string_out)
 {
     nspdferror res;
     struct cos_object *dict_value;
@@ -189,9 +285,9 @@ cos_get_dictionary_string(struct nspdf_doc *doc,
 
 nspdferror
 cos_get_dictionary_dictionary(struct nspdf_doc *doc,
-                        struct cos_object *dict,
-                        const char *key,
-                        struct cos_object **value_out)
+                              struct cos_object *dict,
+                              const char *key,
+                              struct cos_object **value_out)
 {
     nspdferror res;
     struct cos_object *dict_value;
@@ -205,9 +301,9 @@ cos_get_dictionary_dictionary(struct nspdf_doc *doc,
 
 nspdferror
 cos_heritable_dictionary_dictionary(struct nspdf_doc *doc,
-                        struct cos_object *dict,
-                        const char *key,
-                        struct cos_object **value_out)
+                                    struct cos_object *dict,
+                                    const char *key,
+                                    struct cos_object **value_out)
 {
     nspdferror res;
     struct cos_object *dict_value;
@@ -223,9 +319,9 @@ cos_heritable_dictionary_dictionary(struct nspdf_doc *doc,
 
 nspdferror
 cos_get_dictionary_array(struct nspdf_doc *doc,
-                        struct cos_object *dict,
-                        const char *key,
-                        struct cos_object **value_out)
+                         struct cos_object *dict,
+                         const char *key,
+                         struct cos_object **value_out)
 {
     nspdferror res;
     struct cos_object *dict_value;
@@ -239,9 +335,9 @@ cos_get_dictionary_array(struct nspdf_doc *doc,
 
 nspdferror
 cos_heritable_dictionary_array(struct nspdf_doc *doc,
-                        struct cos_object *dict,
-                        const char *key,
-                        struct cos_object **value_out)
+                               struct cos_object *dict,
+                               const char *key,
+                               struct cos_object **value_out)
 {
     nspdferror res;
     struct cos_object *dict_value;
@@ -296,8 +392,8 @@ cos_get_number(struct nspdf_doc *doc,
 
 nspdferror
 cos_get_name(struct nspdf_doc *doc,
-            struct cos_object *cobj,
-            const char **value_out)
+             struct cos_object *cobj,
+             const char **value_out)
 {
     nspdferror res;
 
@@ -334,8 +430,8 @@ cos_get_dictionary(struct nspdf_doc *doc,
 
 nspdferror
 cos_get_array(struct nspdf_doc *doc,
-                   struct cos_object *cobj,
-                   struct cos_object **value_out)
+              struct cos_object *cobj,
+              struct cos_object **value_out)
 {
     nspdferror res;
 
@@ -410,7 +506,7 @@ cos_get_object(struct nspdf_doc *doc,
  * exported interface documented in cos_object.h
  *
  * slightly different behaviour to other getters:
-
+ *
  * - This getter can be passed an object pointer to a synthetic parsed content
  *     stream object in which case it returns that objects content operation
  *     list.
@@ -437,10 +533,14 @@ cos_get_content(struct nspdf_doc *doc,
     struct cos_object *content_obj; /* parsed content object */
     struct cos_object tmpobj;
 
-    /* already parsed the content stream */
+    //cos_dump_object("get content of", cobj);
+
     if (cobj->type == COS_TYPE_CONTENT) {
-        *content_out = cobj->u.content;
-    } else if (cobj->type == COS_TYPE_REFERENCE) {
+        /* already parsed the content stream */
+        goto cos_get_content_done;
+    }
+
+    if (cobj->type == COS_TYPE_REFERENCE) {
         /* single reference */
         reference_count = 1;
         references = calloc(reference_count, sizeof(struct cos_object *));
@@ -504,10 +604,15 @@ cos_get_content(struct nspdf_doc *doc,
     tmpobj = *cobj;
     *cobj = *content_obj;
     *content_obj = tmpobj;
+
+    //cos_dump_object("content object", cobj);
+    //cos_dump_object("free object", content_obj);
+
     cos_free_object(content_obj);
 
     /** \todo call nspdf__xref_free_referenced(doc, *(references + index)); to free up storage associated with already parsed streams */
 
+cos_get_content_done:
     *content_out = cobj->u.content;
 
     return NSPDFERROR_OK;
@@ -541,9 +646,9 @@ cos_get_array_value(struct nspdf_doc *doc,
 
 nspdferror
 cos_get_array_dictionary(struct nspdf_doc *doc,
-                        struct cos_object *array,
-                        unsigned int index,
-                        struct cos_object **value_out)
+                         struct cos_object *array,
+                         unsigned int index,
+                         struct cos_object **value_out)
 {
     nspdferror res;
     struct cos_object *array_value;

@@ -89,7 +89,7 @@ struct cos_content {
 };
 
 struct cos_object {
-    int type;
+    enum cos_type type;
     union {
         /** boolean */
         bool b;
