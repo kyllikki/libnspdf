@@ -380,6 +380,63 @@ copy_name_number(struct cos_object **operands,
     return NSPDFERROR_OK;
 }
 
+
+static nspdferror
+copy_array_int(struct cos_object **operands,
+             unsigned int *operand_idx,
+             struct content_operation *operation_out)
+{
+    unsigned int index = 0;
+
+    if ((*operand_idx) == 0) {
+        printf("operator %s that takes %d operands passed %d\n",
+               operator_name(operation_out->operator), 2, *operand_idx);
+        operation_out->u.namenumber.name = NULL;
+        return NSPDFERROR_OK;
+    }
+
+    /* process wanted operands */
+    if ((*operands)->type != COS_TYPE_ARRAY) {
+        printf("operand was not an array\n");
+        operation_out->u.arrayint.length = 0;
+        operation_out->u.arrayint.values = NULL;
+        operation_out->u.arrayint.i = 0;
+    } else {
+        operation_out->u.arrayint.length = (*operands)->u.array->length;
+        /* steal the values from the array object */
+        operation_out->u.arrayint.values = (*operands)->u.array->values;
+        (*operands)->u.array->alloc = 0;
+        (*operands)->u.array->length = 0;
+
+        operation_out->u.arrayint.i = 0;
+        /* get the int */
+        if ((*operand_idx) > 1) {
+            nspdferror res;
+            res = cos_get_int(NULL, *(operands + 1), &operation_out->u.arrayint.i);
+            if (res != NSPDFERROR_OK) {
+                printf("operand 1 could not be set in operation (code %d)\n", res);
+            }
+        } else {
+            printf("operator %s that takes %d operands passed %d\n",
+                   operator_name(operation_out->operator), 2, *operand_idx);
+        }
+    }
+
+    if ((*operand_idx) > 2) {
+        printf("operator %s that takes %d operands passed %d\n",
+               operator_name(operation_out->operator), 2, *operand_idx);
+    }
+
+    /* free all operands */
+    while (index < (*operand_idx)) {
+        cos_free_object(*(operands + index));
+        index++;
+    }
+    *operand_idx = 0;
+
+    return NSPDFERROR_OK;
+}
+
 /* exported interface documented in cos_content.h */
 nspdferror
 nspdf__cos_content_convert(enum content_operator operator,
@@ -483,31 +540,35 @@ nspdf__cos_content_convert(enum content_operator operator,
         break;
 
     case CONTENT_OP_gs:
+    case CONTENT_OP_Do:
+    case CONTENT_OP_ri:
+    case CONTENT_OP_CS:
+    case CONTENT_OP_cs:
+    case CONTENT_OP_sh:
+    case CONTENT_OP_MP:
+    case CONTENT_OP_BMC:
         /* name */
         res = copy_name(operands, operand_idx, operation_out);
         break;
 
     case CONTENT_OP_j:
     case CONTENT_OP_J:
+    case CONTENT_OP_Tr:
         /* one integer */
         res = copy_integers(1, operands, operand_idx, operation_out);
         break;
 
-    case CONTENT_OP_BDC:
-    case CONTENT_OP_BMC:
-    case CONTENT_OP_CS:
-    case CONTENT_OP_cs:
     case CONTENT_OP_d:
-    case CONTENT_OP_Do:
+        /* array and int */
+        res = copy_array_int(operands, operand_idx, operation_out);
+        break;
+
+    case CONTENT_OP_BDC:
     case CONTENT_OP_DP:
-    case CONTENT_OP_MP:
-    case CONTENT_OP_ri:
     case CONTENT_OP_SC:
     case CONTENT_OP_sc:
     case CONTENT_OP_SCN:
     case CONTENT_OP_scn:
-    case CONTENT_OP_sh:
-    case CONTENT_OP_Tr:
     case CONTENT_OP___:
         res = copy_numbers(0, operands, operand_idx, operation_out);
         break;

@@ -220,6 +220,13 @@ struct content_operation
             char *name;
             float number;
         } namenumber;
+
+        struct {
+            unsigned int length;
+            struct cos_object **values;
+            int64_t i;
+        } arrayint;
+
     } u;
 };
 
