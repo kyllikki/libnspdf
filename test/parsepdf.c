@@ -55,6 +55,28 @@ read_whole_pdf(const char *fname, uint8_t **buffer, uint64_t *buffer_length)
     return NSPDFERROR_OK;
 }
 
+static nspdferror render_pages(struct nspdf_doc *doc, unsigned int page_count)
+{
+    nspdferror res;
+    struct nspdf_render_ctx render_ctx;
+    unsigned int page_render_list[4] = { 0, 1, 0, 1};
+    unsigned int page_index;
+
+    for (page_index = 0; page_index < page_count; page_index++) {
+        res = nspdf_page_render(doc, page_index, &render_ctx);
+        if (res != NSPDFERROR_OK) {
+            break;
+        }
+    }
+
+    for (page_index = 0; page_index < 4; page_index++) {
+        res = nspdf_page_render(doc, page_render_list[page_index], &render_ctx);
+        if (res != NSPDFERROR_OK) {
+            break;
+        }
+    }
+    return res;
+}
 
 int main(int argc, char **argv)
 {
@@ -94,17 +116,15 @@ int main(int argc, char **argv)
     }
 
     res = nspdf_page_count(doc, &page_count);
-    if (res != NSPDFERROR_OK) {
-        printf("page count failed (%d)\n", res);
-        return res;
+    if (res == NSPDFERROR_OK) {
+        printf("Pages:%d\n", page_count);
     }
-    printf("Pages:%d\n", page_count);
 
-    res = nspdf_page_render(doc, 0);
-    if (res != NSPDFERROR_OK) {
-        printf("page render failed (%d)\n", res);
-        return res;
-    }
+    res = render_pages(doc, page_count);
+        if (res != NSPDFERROR_OK) {
+            printf("page render failed (%d)\n", res);
+            return res;
+        }
 
     res = nspdf_document_destroy(doc);
     if (res != NSPDFERROR_OK) {

@@ -1424,7 +1424,7 @@ cos_parse_content_streams(struct nspdf_doc *doc,
     if (cosobj->u.content == NULL) {
         res = NSPDFERROR_NOMEM;
         goto cos_parse_content_stream_error;
-     }
+    }
 
     for (stream_index = 0; stream_index < stream_count; stream_index++) {
         stream = *(streams + stream_index);

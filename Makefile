@@ -57,5 +57,6 @@ I := /$(INCLUDEDIR)/nspdf
 INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf/document.h
 INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf/meta.h
 INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf/errors.h
+INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/nspdf/page.h
 INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR)/pkgconfig:lib$(COMPONENT).pc.in
 INSTALL_ITEMS := $(INSTALL_ITEMS) /$(LIBDIR):$(OUTPUT)

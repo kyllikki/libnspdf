@@ -149,7 +149,9 @@ nspdf_page_count(struct nspdf_doc *doc, unsigned int *pages_out)
 
 /* exported interface documented in nspdf/page.h */
 nspdferror
-nspdf_page_render(struct nspdf_doc *doc, unsigned int page_number)
+nspdf_page_render(struct nspdf_doc *doc,
+                  unsigned int page_number,
+                  struct nspdf_render_ctx* render_ctx)
 {
     struct page_table_entry *page_entry;
     struct cos_content *page_content; /* page operations array */
@@ -158,8 +160,11 @@ nspdf_page_render(struct nspdf_doc *doc, unsigned int page_number)
     page_entry = doc->page_table + page_number;
 
     res = cos_get_content(doc, page_entry->contents, &page_content);
-    if (res == NSPDFERROR_OK) {
-        printf("%p\n", page_content);
+    if (res != NSPDFERROR_OK) {
+        return res;
     }
+
+    printf("page %d content:%p\n", page_number, page_content);
+
     return res;
 }
