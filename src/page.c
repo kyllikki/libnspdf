@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <nspdf/page.h>
 
+#include "cos_content.h"
 #include "cos_object.h"
 #include "pdf_doc.h"
 
@@ -146,6 +147,170 @@ nspdf_page_count(struct nspdf_doc *doc, unsigned int *pages_out)
     return NSPDFERROR_OK;
 }
 
+/**
+ * colourspaces
+ * \todo extend this with full list from section 4.5.2
+ */
+enum graphics_state_colorspace {
+    GSDeviceGray = 0, /* Default */
+    GSDeviceRGB,
+    GSDeviceCMYK,
+};
+
+struct graphics_state_color {
+    enum graphics_state_colorspace space;
+    union {
+        float gray; /* default is 0 - black */
+        float rgb[3];
+        float cmyk[3];
+    };
+};
+
+struct graphics_state_param {
+    float ctm[6]; /* current transform matrix */
+    /* clipping path */
+    struct graphics_state_color stroke_colour;
+    struct graphics_state_color other_colour;
+    /* text state */
+    float line_width;
+    unsigned int line_cap;
+    unsigned int line_join;
+    float miter_limit;
+    /* dash pattern */
+    /* rendering intent RelativeColorimetric */
+    bool stroke_adjustment;
+    /* blend mode: Normal */
+    /* soft mask */
+    /* alpha constant */
+    /* alpha source */
+};
+
+struct graphics_state {
+    float *path; /* current path */
+    unsigned int path_idx; /* current index into path */
+    unsigned int path_alloc; /* current number of path elements allocated */
+
+    struct graphics_state_param *param_stack; /* parameter stack */
+    unsigned int param_stack_idx;
+    unsigned int param_stack_alloc;
+};
+
+static inline nspdferror
+render_operation_m(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->path[gs->path_idx++] = NSPDF_PATH_MOVE;
+    gs->path[gs->path_idx++] = operation->u.number[0];
+    gs->path[gs->path_idx++] = operation->u.number[1];
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_l(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->path[gs->path_idx++] = NSPDF_PATH_LINE;
+    gs->path[gs->path_idx++] = operation->u.number[0];
+    gs->path[gs->path_idx++] = operation->u.number[1];
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_re(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->path[gs->path_idx++] = NSPDF_PATH_MOVE;
+    gs->path[gs->path_idx++] = operation->u.number[0]; /* x */
+    gs->path[gs->path_idx++] = operation->u.number[1]; /* y */
+    gs->path[gs->path_idx++] = NSPDF_PATH_LINE;
+    gs->path[gs->path_idx++] = operation->u.number[0] + operation->u.number[2];
+    gs->path[gs->path_idx++] = operation->u.number[1];
+    gs->path[gs->path_idx++] = NSPDF_PATH_LINE;
+    gs->path[gs->path_idx++] = operation->u.number[0] + operation->u.number[2];
+    gs->path[gs->path_idx++] = operation->u.number[1] + operation->u.number[3];
+    gs->path[gs->path_idx++] = NSPDF_PATH_LINE;
+    gs->path[gs->path_idx++] = operation->u.number[0];
+    gs->path[gs->path_idx++] = operation->u.number[1] + operation->u.number[3];
+    gs->path[gs->path_idx++] = NSPDF_PATH_CLOSE;
+
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_h(struct graphics_state *gs)
+{
+    gs->path[gs->path_idx++] = NSPDF_PATH_CLOSE;
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_f(struct graphics_state *gs, struct nspdf_render_ctx* render_ctx)
+{
+    struct nspdf_style style;
+    style.stroke_type = NSPDF_OP_TYPE_NONE;
+    style.stroke_colour = 0x01000000;
+    style.fill_type = NSPDF_OP_TYPE_SOLID;
+    style.fill_colour = 0;
+
+    render_ctx->path(&style,
+                     gs->path,
+                     gs->path_idx,
+                     gs->param_stack[gs->param_stack_idx].ctm,
+                     render_ctx->ctx);
+    gs->path_idx = 0;
+    return NSPDFERROR_OK;
+}
+
+
+static inline nspdferror
+render_operation_S(struct graphics_state *gs, struct nspdf_render_ctx* render_ctx)
+{
+    struct nspdf_style style;
+
+    style.stroke_type = NSPDF_OP_TYPE_SOLID;
+    style.stroke_colour = 0;
+    style.stroke_width = gs->param_stack[gs->param_stack_idx].line_width;
+    style.fill_type = NSPDF_OP_TYPE_NONE;
+    style.fill_colour = 0x01000000;
+    render_ctx->path(&style,
+                     gs->path,
+                     gs->path_idx,
+                     gs->param_stack[gs->param_stack_idx].ctm,
+                     render_ctx->ctx);
+    gs->path_idx = 0;
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_w(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->param_stack[gs->param_stack_idx].line_width = operation->u.number[0];
+    return NSPDFERROR_OK;
+}
+
+/**
+ * Initialise the parameter stack
+ *
+ * allocates the initial parameter stack and initialises the defaults
+ */
+static nspdferror
+init_param_stack(struct graphics_state *gs, struct nspdf_render_ctx* render_ctx)
+{
+    gs->param_stack_alloc = 16; /* start with 16 deep parameter stack */
+    gs->param_stack_idx = 0;
+    gs->param_stack = calloc(gs->param_stack_alloc,
+                             sizeof(struct graphics_state_param));
+    if (gs->param_stack == NULL) {
+        return NSPDFERROR_NOMEM;
+    }
+
+    gs->param_stack[0].ctm[0] = render_ctx->device_space[0];
+    gs->param_stack[0].ctm[1] = render_ctx->device_space[1];
+    gs->param_stack[0].ctm[2] = render_ctx->device_space[2];
+    gs->param_stack[0].ctm[3] = render_ctx->device_space[3];
+    gs->param_stack[0].ctm[4] = render_ctx->device_space[4];
+    gs->param_stack[0].ctm[5] = render_ctx->device_space[5];
+    gs->param_stack[0].line_width = 1.0;
+
+    return NSPDFERROR_OK;
+}
 
 /* exported interface documented in nspdf/page.h */
 nspdferror
@@ -156,6 +321,10 @@ nspdf_page_render(struct nspdf_doc *doc,
     struct page_table_entry *page_entry;
     struct cos_content *page_content; /* page operations array */
     nspdferror res;
+    struct content_operation *operation;
+    unsigned int idx;
+
+    struct graphics_state gs;
 
     page_entry = doc->page_table + page_number;
 
@@ -165,6 +334,75 @@ nspdf_page_render(struct nspdf_doc *doc,
     }
 
     printf("page %d content:%p\n", page_number, page_content);
+
+    gs.path_idx = 0;
+    gs.path_alloc = 8192;
+    gs.path = malloc(gs.path_alloc * sizeof(float));
+    if (gs.path == NULL) {
+        return NSPDFERROR_NOMEM;
+    }
+
+    res = init_param_stack(&gs, render_ctx);
+    if (res != NSPDFERROR_OK) {
+        free(gs.path);
+        return res;
+    }
+
+    /* iterate over operations */
+    for (idx = 0, operation = page_content->operations;
+         idx < page_content->length;
+         idx++, operation++) {
+        switch(operation->operator) {
+        case CONTENT_OP_m: /* move */
+            res = render_operation_m(operation, &gs);
+            break;
+
+        case CONTENT_OP_l: /* line */
+            res = render_operation_l(operation, &gs);
+            break;
+
+        case CONTENT_OP_re: /* rectangle */
+            res = render_operation_re(operation, &gs);
+            break;
+
+        case CONTENT_OP_h: /* close path */
+            res = render_operation_h(&gs);
+            break;
+
+        case CONTENT_OP_f:
+        case CONTENT_OP_f_:
+        case CONTENT_OP_B:
+        case CONTENT_OP_B_:
+        case CONTENT_OP_b:
+        case CONTENT_OP_b_:
+            res = render_operation_f(&gs, render_ctx);
+            break;
+
+        case CONTENT_OP_s:
+            render_operation_h(&gs);
+            res = render_operation_S(&gs, render_ctx);
+            break;
+
+        case CONTENT_OP_S:
+            res = render_operation_S(&gs, render_ctx);
+            break;
+
+        case CONTENT_OP_w:
+            res = render_operation_w(operation, &gs);
+            //printf("line width:%f\n", gs.param_stack[gs.param_stack_idx].line_width);
+            break;
+
+        default:
+            printf("operator %s\n",
+               nspdf__cos_content_operator_name(operation->operator));
+            break;
+
+        }
+
+    }
+
+    free(gs.param_stack);
+    free(gs.path);
 
     return res;
 }

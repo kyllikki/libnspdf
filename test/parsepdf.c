@@ -55,12 +55,30 @@ read_whole_pdf(const char *fname, uint8_t **buffer, uint64_t *buffer_length)
     return NSPDFERROR_OK;
 }
 
+static nspdferror
+pdf_path(const struct nspdf_style *style,
+         const float *path,
+         unsigned int path_length,
+         const float transform[6],
+         const void *ctxin)
+{
+        return NSPDFERROR_OK;
+}
+
 static nspdferror render_pages(struct nspdf_doc *doc, unsigned int page_count)
 {
     nspdferror res;
     struct nspdf_render_ctx render_ctx;
     unsigned int page_render_list[4] = { 0, 1, 0, 1};
     unsigned int page_index;
+
+        render_ctx.device_space[0] = 1;
+        render_ctx.device_space[1] = 0;
+        render_ctx.device_space[2] = 0;
+        render_ctx.device_space[3] = -1; /* y scale */
+        render_ctx.device_space[4] = 0; /* x offset */
+        render_ctx.device_space[5] = 800; /* y offset */
+        render_ctx.path = pdf_path;
 
     for (page_index = 0; page_index < page_count; page_index++) {
         res = nspdf_page_render(doc, page_index, &render_ctx);

@@ -193,9 +193,9 @@ enum content_operator {
 #define content_string_intrnl_lngth ((sizeof(float) * content_number_size) - sizeof(uint8_t *))
 
 
-struct content_operation
-{
+struct content_operation {
     enum content_operator operator;
+
     union {
         float number[content_number_size];
 
@@ -229,6 +229,19 @@ struct content_operation
 
     } u;
 };
+
+/**
+ * Synthetic parsed content object.
+ */
+struct cos_content {
+    unsigned int length; /**< number of content operations */
+    unsigned int alloc; /**< number of allocated operations */
+    struct content_operation *operations;
+};
+
+
+const char* nspdf__cos_content_operator_name(enum content_operator operator);
+
 
 /**
  * convert an operator and operand list into an operation

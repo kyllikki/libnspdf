@@ -35,7 +35,7 @@ enum nspdf_style_operation {
  */
 typedef struct nspdf_style {
     enum nspdf_style_operation stroke_type; /**< Stroke plot type */
-    int stroke_width; /**< Width of stroke, in pixels */
+    float stroke_width; /**< Width of stroke, in pixels */
     uint32_t stroke_colour; /**< Colour of stroke XBGR */
 
     enum nspdf_style_operation fill_type; /**< Fill plot type */

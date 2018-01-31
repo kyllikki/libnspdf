@@ -19,6 +19,7 @@
 
 struct nspdf_doc;
 struct content_operation;
+struct cos_content;
 
 enum cos_type {
     COS_TYPE_NULL, /* 0 */
@@ -77,16 +78,6 @@ struct cos_reference {
     uint64_t generation; /**< generation of indirect object */
 };
 
-
-/**
- * Synthetic parsed content object.
- *
- */
-struct cos_content {
-    unsigned int length; /**< number of content operations */
-    unsigned int alloc; /**< number of allocated operations */
-    struct content_operation *operations;
-};
 
 struct cos_object {
     enum cos_type type;

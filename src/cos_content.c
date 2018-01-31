@@ -20,7 +20,8 @@
 #include "cos_content.h"
 #include "pdf_doc.h"
 
-static const char*operator_name(enum content_operator operator)
+const char*
+nspdf__cos_content_operator_name(enum content_operator operator)
 {
     switch(operator) {
     case CONTENT_OP_b: return "b";
@@ -135,14 +136,14 @@ copy_numbers(unsigned int wanted,
     }
     if ((*operand_idx) > index) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), wanted, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), wanted, *operand_idx);
         while (index < (*operand_idx)) {
             cos_free_object(*(operands + index));
             index++;
         }
     } else if ((*operand_idx) < index) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), wanted, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), wanted, *operand_idx);
     }
 
     *operand_idx = 0; /* all operands freed */
@@ -174,14 +175,14 @@ copy_integers(unsigned int wanted,
     }
     if ((*operand_idx) > index) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), wanted, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), wanted, *operand_idx);
         while (index < (*operand_idx)) {
             cos_free_object(*(operands + index));
             index++;
         }
     } else if ((*operand_idx) < index) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), wanted, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), wanted, *operand_idx);
     }
 
     *operand_idx = 0; /* all operands freed */
@@ -200,7 +201,7 @@ copy_string(struct cos_object **operands,
 
     if ((*operand_idx) == 0) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 1, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 1, *operand_idx);
         operation_out->u.string.length = 0;
         return NSPDFERROR_OK;
     }
@@ -232,7 +233,7 @@ copy_string(struct cos_object **operands,
 
     if ((*operand_idx) > 1) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 1, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 1, *operand_idx);
     }
 
     /* free all operands */
@@ -254,7 +255,7 @@ copy_array(struct cos_object **operands,
 
     if ((*operand_idx) == 0) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 1, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 1, *operand_idx);
         operation_out->u.array.length = 0;
         return NSPDFERROR_OK;
     }
@@ -273,7 +274,7 @@ copy_array(struct cos_object **operands,
 
     if ((*operand_idx) > 1) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 1, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 1, *operand_idx);
     }
 
     /* free all operands */
@@ -296,7 +297,7 @@ copy_name(struct cos_object **operands,
 
     if ((*operand_idx) == 0) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 1, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 1, *operand_idx);
         operation_out->u.name = NULL;
         return NSPDFERROR_OK;
     }
@@ -313,7 +314,7 @@ copy_name(struct cos_object **operands,
 
     if ((*operand_idx) > 1) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 1, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 1, *operand_idx);
     }
 
     /* free all operands */
@@ -335,7 +336,7 @@ copy_name_number(struct cos_object **operands,
 
     if ((*operand_idx) == 0) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 2, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 2, *operand_idx);
         operation_out->u.namenumber.name = NULL;
         return NSPDFERROR_OK;
     }
@@ -361,13 +362,13 @@ copy_name_number(struct cos_object **operands,
             }
         } else {
             printf("operator %s that takes %d operands passed %d\n",
-                   operator_name(operation_out->operator), 2, *operand_idx);
+                   nspdf__cos_content_operator_name(operation_out->operator), 2, *operand_idx);
         }
     }
 
     if ((*operand_idx) > 2) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 2, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 2, *operand_idx);
     }
 
     /* free all operands */
@@ -390,7 +391,7 @@ copy_array_int(struct cos_object **operands,
 
     if ((*operand_idx) == 0) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 2, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 2, *operand_idx);
         operation_out->u.namenumber.name = NULL;
         return NSPDFERROR_OK;
     }
@@ -418,13 +419,13 @@ copy_array_int(struct cos_object **operands,
             }
         } else {
             printf("operator %s that takes %d operands passed %d\n",
-                   operator_name(operation_out->operator), 2, *operand_idx);
+                   nspdf__cos_content_operator_name(operation_out->operator), 2, *operand_idx);
         }
     }
 
     if ((*operand_idx) > 2) {
         printf("operator %s that takes %d operands passed %d\n",
-               operator_name(operation_out->operator), 2, *operand_idx);
+               nspdf__cos_content_operator_name(operation_out->operator), 2, *operand_idx);
     }
 
     /* free all operands */
