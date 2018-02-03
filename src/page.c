@@ -175,7 +175,7 @@ nspdf__decode_page_tree(struct nspdf_doc *doc,
         }
 
         /* optional page contents */
-        res = cos_get_dictionary_value(doc,
+        res = cos_extract_dictionary_value(doc,
                                        page_tree_node,
                                        "Contents",
                                        &(page->contents));

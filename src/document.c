@@ -240,7 +240,7 @@ decode_xref_trailer(struct nspdf_doc *doc, unsigned int xref_offset)
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_extract_dictionary_value(trailer, "Root", &doc->root);
+        res = cos_extract_dictionary_value(NULL, trailer, "Root", &doc->root);
         if (res != NSPDFERROR_OK) {
             printf("no Root!\n");
             goto decode_xref_trailer_failed;
@@ -251,17 +251,17 @@ decode_xref_trailer(struct nspdf_doc *doc, unsigned int xref_offset)
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_extract_dictionary_value(trailer, "Encrypt", &doc->encrypt);
+        res = cos_extract_dictionary_value(NULL, trailer, "Encrypt", &doc->encrypt);
         if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_extract_dictionary_value(trailer, "Info", &doc->info);
+        res = cos_extract_dictionary_value(NULL, trailer, "Info", &doc->info);
         if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
             goto decode_xref_trailer_failed;
         }
 
-        res = cos_extract_dictionary_value(trailer, "ID", &doc->id);
+        res = cos_extract_dictionary_value(NULL, trailer, "ID", &doc->id);
         if ((res != NSPDFERROR_OK) && (res != NSPDFERROR_NOTFOUND)) {
             goto decode_xref_trailer_failed;
         }
@@ -353,7 +353,7 @@ static nspdferror decode_catalog(struct nspdf_doc *doc)
         return res;
     }
 
-    // Type = Catalog
+    /* Type = Catalog */
     res = cos_get_dictionary_name(doc, catalog, "Type", &type);
     if (res != NSPDFERROR_OK) {
         return res;
@@ -362,7 +362,13 @@ static nspdferror decode_catalog(struct nspdf_doc *doc)
         return NSPDFERROR_FORMAT;
     }
 
-    // Pages
+    /* Pages */
+
+    /** todo this should get the dictionary Pages object and check it is an
+     * indirect reference (spec says it *must* be) then below has the reference
+     * to free in xref table
+     */
+
     res = cos_get_dictionary_dictionary(doc, catalog, "Pages", &pages);
     if (res != NSPDFERROR_OK) {
         return res;
@@ -372,6 +378,10 @@ static nspdferror decode_catalog(struct nspdf_doc *doc)
     if (res != NSPDFERROR_OK) {
         return res;
     }
+
+    /** \todo need to free referenced object when page resources tree is copied
+     * instead of being owned by the reference. Right now we leak like a seive
+     */
 
     return res;
 }

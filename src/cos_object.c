@@ -178,31 +178,42 @@ nspdferror cos_free_object(struct cos_object *cos_obj)
  * this finds and returns a value for a given key removing it from a dictionary
  */
 nspdferror
-cos_extract_dictionary_value(struct cos_object *dict,
+cos_extract_dictionary_value(struct nspdf_doc *doc,
+                             struct cos_object *dict,
                              const char *key,
                              struct cos_object **value_out)
 {
-    struct cos_dictionary_entry *entry;
-    struct cos_dictionary_entry **prev;
+    nspdferror res;
 
-    if (dict->type != COS_TYPE_DICTIONARY) {
-        return NSPDFERROR_TYPE;
-    }
+    res = nspdf__xref_get_referenced(doc, &dict);
+    if (res == NSPDFERROR_OK) {
+        if (dict->type != COS_TYPE_DICTIONARY) {
+            res = NSPDFERROR_TYPE;
 
-    prev = &dict->u.dictionary;
-    entry = *prev;
-    while (entry != NULL) {
-        if (strcmp(entry->key->u.name, key) == 0) {
-            *value_out = entry->value;
-            *prev = entry->next;
-            cos_free_object(entry->key);
-            free(entry);
-            return NSPDFERROR_OK;
+        } else {
+            struct cos_dictionary_entry **prev;
+            struct cos_dictionary_entry *entry;
+
+            res = NSPDFERROR_NOTFOUND;
+
+            prev = &dict->u.dictionary;
+            entry = *prev;
+            while (entry != NULL) {
+                if (strcmp(entry->key->u.name, key) == 0) {
+                    *value_out = entry->value;
+                    *prev = entry->next;
+                    cos_free_object(entry->key);
+                    free(entry);
+                    res = NSPDFERROR_OK;
+                    break;
+                }
+                prev = &entry->next;
+                entry = *prev;
+            }
         }
-        prev = &entry->next;
-        entry = *prev;
     }
-    return NSPDFERROR_NOTFOUND;
+    return res;
+
 }
 
 

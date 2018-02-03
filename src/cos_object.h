@@ -149,6 +149,11 @@ nspdferror cos_free_object(struct cos_object *cos_obj);
  * the entry from the dictionary. Once extracted the caller owns the returned
  * object and must free it.
  *
+ * Get the value for a key from a dictionary, If the dictionary is an object
+ * reference it will be dereferenced first which will parse any previously
+ * unreferenced indirect objects.
+ *
+ * \param doc The document the cos object belongs to or NULL to supress dereferencing.
  * \param dict The dictionary
  * \param key The key to lookup
  * \param value_out The value object associated with the key
@@ -156,7 +161,7 @@ nspdferror cos_free_object(struct cos_object *cos_obj);
  *         NSPDFERROR_TYPE if the object passed in \p dict is not a dictionary.
  *         NSPDFERROR_NOTFOUND if the key is not present in the dictionary.
  */
-nspdferror cos_extract_dictionary_value(struct cos_object *dict, const char *key, struct cos_object **value_out);
+nspdferror cos_extract_dictionary_value(struct nspdf_doc *doc, struct cos_object *dict, const char *key, struct cos_object **value_out);
 
 
 /**
