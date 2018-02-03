@@ -71,16 +71,24 @@ static nspdferror render_pages(struct nspdf_doc *doc, unsigned int page_count)
     struct nspdf_render_ctx render_ctx;
     unsigned int page_render_list[4] = { 0, 1, 0, 1};
     unsigned int page_index;
+    float page_width;
+    float page_height;
 
-        render_ctx.device_space[0] = 1;
-        render_ctx.device_space[1] = 0;
-        render_ctx.device_space[2] = 0;
-        render_ctx.device_space[3] = -1; /* y scale */
-        render_ctx.device_space[4] = 0; /* x offset */
-        render_ctx.device_space[5] = 800; /* y offset */
-        render_ctx.path = pdf_path;
+    render_ctx.device_space[0] = 1;
+    render_ctx.device_space[1] = 0;
+    render_ctx.device_space[2] = 0;
+    render_ctx.device_space[3] = -1; /* y scale */
+    render_ctx.device_space[4] = 0; /* x offset */
+    render_ctx.device_space[5] = 800; /* y offset */
+    render_ctx.path = pdf_path;
 
     for (page_index = 0; page_index < page_count; page_index++) {
+        res = nspdf_get_page_dimensions(doc,
+                                        page_index,
+                                        &page_width,
+                                        &page_height);
+        printf("page w:%f h:%f\n", page_width, page_height);
+
         res = nspdf_page_render(doc, page_index, &render_ctx);
         if (res != NSPDFERROR_OK) {
             break;
@@ -88,11 +96,18 @@ static nspdferror render_pages(struct nspdf_doc *doc, unsigned int page_count)
     }
 
     for (page_index = 0; page_index < 4; page_index++) {
+        res = nspdf_get_page_dimensions(doc,
+                                        page_index,
+                                        &page_width,
+                                        &page_height);
+        printf("page w:%f h:%f\n", page_width, page_height);
+
         res = nspdf_page_render(doc, page_render_list[page_index], &render_ctx);
         if (res != NSPDFERROR_OK) {
             break;
         }
     }
+
     return res;
 }
 

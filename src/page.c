@@ -22,8 +22,13 @@
 /** page entry */
 struct page_table_entry {
     struct cos_object *resources;
-    struct cos_object *mediabox;
     struct cos_object *contents;
+    struct cos_rectangle mediabox; /* extent of media - required */
+    struct cos_rectangle cropbox; /* default is mediabox */
+    struct cos_rectangle bleedbox; /* default is crop box */
+    struct cos_rectangle trimbox; /* default is crop box */
+    struct cos_rectangle artbox; /* default is crop box */
+
 };
 
 /**
@@ -90,6 +95,7 @@ nspdf__decode_page_tree(struct nspdf_doc *doc,
 
     } else if (strcmp(type, "Page") == 0) {
         struct page_table_entry *page;
+        struct cos_object *rect_array;
 
         page = doc->page_table + (*page_index);
 
@@ -106,9 +112,66 @@ nspdf__decode_page_tree(struct nspdf_doc *doc,
         res = cos_heritable_dictionary_array(doc,
                                              page_tree_node,
                                              "MediaBox",
-                                             &(page->mediabox));
+                                             &rect_array);
         if (res != NSPDFERROR_OK) {
             return res;
+        }
+
+        res = cos_get_rectangle(doc, rect_array, &page->mediabox);
+        if (res != NSPDFERROR_OK) {
+            return res;
+        }
+
+        /* optional heritable crop box */
+        res = cos_heritable_dictionary_array(doc,
+                                             page_tree_node,
+                                             "CropBox",
+                                             &rect_array);
+        if (res == NSPDFERROR_OK) {
+            res = cos_get_rectangle(doc, rect_array, &page->cropbox);
+        }
+        if (res != NSPDFERROR_OK) {
+            /* default is mediabox */
+            page->cropbox = page->mediabox;
+        }
+
+        /* optional bleed box */
+        res = cos_get_dictionary_array(doc,
+                                       page_tree_node,
+                                       "BleedBox",
+                                       &rect_array);
+        if (res == NSPDFERROR_OK) {
+            res = cos_get_rectangle(doc, rect_array, &page->bleedbox);
+        }
+        if (res != NSPDFERROR_OK) {
+            /* default is cropbox */
+            page->bleedbox = page->cropbox;
+        }
+
+        /* optional trim box */
+        res = cos_get_dictionary_array(doc,
+                                       page_tree_node,
+                                       "TrimBox",
+                                       &rect_array);
+        if (res == NSPDFERROR_OK) {
+            res = cos_get_rectangle(doc, rect_array, &page->trimbox);
+        }
+        if (res != NSPDFERROR_OK) {
+            /* default is cropbox */
+            page->trimbox = page->cropbox;
+        }
+
+        /* optional art box */
+        res = cos_get_dictionary_array(doc,
+                                       page_tree_node,
+                                       "ArtBox",
+                                       &rect_array);
+        if (res == NSPDFERROR_OK) {
+            res = cos_get_rectangle(doc, rect_array, &page->artbox);
+        }
+        if (res != NSPDFERROR_OK) {
+            /* default is cropbox */
+            page->artbox = page->cropbox;
         }
 
         /* optional page contents */
@@ -323,7 +386,6 @@ nspdf_page_render(struct nspdf_doc *doc,
     nspdferror res;
     struct content_operation *operation;
     unsigned int idx;
-
     struct graphics_state gs;
 
     page_entry = doc->page_table + page_number;
@@ -405,4 +467,18 @@ nspdf_page_render(struct nspdf_doc *doc,
     free(gs.path);
 
     return res;
+}
+
+
+nspdferror
+nspdf_get_page_dimensions(struct nspdf_doc *doc,
+                          unsigned int page_number,
+                          float *width,
+                          float *height)
+{
+    struct page_table_entry *page_entry;
+    page_entry = doc->page_table + page_number;
+    *width = page_entry->cropbox.urx - page_entry->cropbox.llx;
+    *height = page_entry->cropbox.ury - page_entry->cropbox.lly;
+    return NSPDFERROR_OK;
 }

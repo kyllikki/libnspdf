@@ -72,6 +72,8 @@ struct nspdf_render_ctx {
     nspdferror (*path)(const struct nspdf_style *style, const float *p, unsigned int n, const float transform[6], const void *ctx);
 };
 
+nspdferror nspdf_get_page_dimensions(struct nspdf_doc *doc, unsigned int page_number, float *width, float *height);
+
 nspdferror nspdf_page_count(struct nspdf_doc *doc, unsigned int *pages_out);
 
 nspdferror nspdf_page_render(struct nspdf_doc *doc, unsigned int page_num, struct nspdf_render_ctx* render_ctx);

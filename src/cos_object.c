@@ -30,6 +30,10 @@ static nspdferror cos_dump_object(const char *fmt, struct cos_object *cos_obj)
         printf("  type = COS_TYPE_NAMETREE\n");
         break;
 
+    case COS_TYPE_NUMBERTREE:
+        printf("  type = COS_TYPE_NUMBERTREE\n");
+        break;
+
     case COS_TYPE_REFERENCE:
         printf("  type = COS_TYPE_REFERENCE\n"
                "  u.reference->id = %lu\n"
@@ -116,7 +120,6 @@ static nspdferror cos_dump_object(const char *fmt, struct cos_object *cos_obj)
 
 
     return NSPDFERROR_OK;
-
 }
 
 nspdferror cos_free_object(struct cos_object *cos_obj)
@@ -318,6 +321,8 @@ cos_heritable_dictionary_dictionary(struct nspdf_doc *doc,
     return cos_get_dictionary(doc, dict_value, value_out);
 }
 
+
+/* get an inheritable array object from a dictionary */
 nspdferror
 cos_get_dictionary_array(struct nspdf_doc *doc,
                          struct cos_object *dict,
@@ -502,6 +507,41 @@ cos_get_object(struct nspdf_doc *doc,
     }
     return res;
 }
+
+
+nspdferror
+cos_get_rectangle(struct nspdf_doc *doc,
+                  struct cos_object *cobj,
+                  struct cos_rectangle *rect_out)
+{
+    nspdferror res;
+    struct cos_rectangle rect;
+
+    res = nspdf__xref_get_referenced(doc, &cobj);
+    if (res == NSPDFERROR_OK) {
+        if ((cobj->type != COS_TYPE_ARRAY) ||
+            (cobj->u.array->length != 4)) {
+            res = NSPDFERROR_TYPE;
+        } else {
+            res = cos_get_number(doc, cobj->u.array->values[0], &rect.llx);
+            if (res == NSPDFERROR_OK) {
+                res = cos_get_number(doc, cobj->u.array->values[1], &rect.lly);
+                if (res == NSPDFERROR_OK) {
+                    res = cos_get_number(doc, cobj->u.array->values[2], &rect.urx);
+                    if (res == NSPDFERROR_OK) {
+                        res = cos_get_number(doc, cobj->u.array->values[3], &rect.ury);
+                        if (res == NSPDFERROR_OK) {
+                            *rect_out = rect;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
 
 /*
  * exported interface documented in cos_object.h
