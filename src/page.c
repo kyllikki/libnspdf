@@ -348,6 +348,64 @@ render_operation_w(struct content_operation *operation, struct graphics_state *g
     return NSPDFERROR_OK;
 }
 
+static inline nspdferror
+render_operation_q(struct graphics_state *gs)
+{
+    gs->param_stack[gs->param_stack_idx + 1] = gs->param_stack[gs->param_stack_idx];
+    gs->param_stack_idx++;
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_Q(struct graphics_state *gs)
+{
+    if (gs->param_stack_idx > 0) {
+        gs->param_stack_idx--;
+    }
+    return NSPDFERROR_OK;
+}
+
+/**
+ * pre-multiply matrix
+ */
+static inline nspdferror
+render_operation_cm(struct content_operation *operation, struct graphics_state *gs)
+{
+    float M[6]; /* result matrix */
+    /* M' = Mt * M */
+    /* M' = Mo * Mc where Mo is operation and Mc is graphics state ctm */
+    /* | a b c |   | A B C |   | aA+bP+cU aB+bQ+cV aC+bR+cW |
+     * | p q r | * | P Q R | = | pA+qP+rU pB+qQ+rV pC+qR+rW |
+     * | u v w |   | U V W |   | uA+vP+wU uB+vQ+wV uC+vR+wW |
+     *
+     * | o[0] o[1] 0 |   | c[0] c[1] 0 |   | o[0]*c[0]+o[1]*c[2]      o[0]*c[1]+o[1]*c[3]      0 |
+     * | o[2] o[3] 0 | * | c[2] c[3] 0 | = | o[2]*c[0]+o[3]*c[2]      o[2]*c[1]+o[3]*c[3]      0 |
+     * | o[4] o[5] 1 |   | c[4] c[5] 1 |   | o[4]*c[0]+o[5]*c[2]+c[4] o[4]*c[1]+o[5]*c[3]+c[5] 1 |
+     */
+    M[0] = operation->u.number[0] * gs->param_stack[gs->param_stack_idx].ctm[0] +
+           operation->u.number[1] * gs->param_stack[gs->param_stack_idx].ctm[2];
+    M[1] = operation->u.number[0] * gs->param_stack[gs->param_stack_idx].ctm[1] +
+           operation->u.number[1] * gs->param_stack[gs->param_stack_idx].ctm[3];
+    M[2] = operation->u.number[2] * gs->param_stack[gs->param_stack_idx].ctm[0] +
+           operation->u.number[3] * gs->param_stack[gs->param_stack_idx].ctm[2];
+    M[3] = operation->u.number[2] * gs->param_stack[gs->param_stack_idx].ctm[1] +
+           operation->u.number[3] * gs->param_stack[gs->param_stack_idx].ctm[3];
+    M[4] = operation->u.number[4] * gs->param_stack[gs->param_stack_idx].ctm[0] +
+           operation->u.number[5] * gs->param_stack[gs->param_stack_idx].ctm[2] +
+           gs->param_stack[gs->param_stack_idx].ctm[4];
+    M[5] = operation->u.number[4] * gs->param_stack[gs->param_stack_idx].ctm[1] +
+           operation->u.number[5] * gs->param_stack[gs->param_stack_idx].ctm[3] +
+           gs->param_stack[gs->param_stack_idx].ctm[5];
+
+    gs->param_stack[gs->param_stack_idx].ctm[0] = M[0];
+    gs->param_stack[gs->param_stack_idx].ctm[1] = M[1];
+    gs->param_stack[gs->param_stack_idx].ctm[2] = M[2];
+    gs->param_stack[gs->param_stack_idx].ctm[3] = M[3];
+    gs->param_stack[gs->param_stack_idx].ctm[4] = M[4];
+    gs->param_stack[gs->param_stack_idx].ctm[5] = M[5];
+    return NSPDFERROR_OK;
+}
+
 /**
  * Initialise the parameter stack
  *
@@ -452,6 +510,18 @@ nspdf_page_render(struct nspdf_doc *doc,
         case CONTENT_OP_w:
             res = render_operation_w(operation, &gs);
             //printf("line width:%f\n", gs.param_stack[gs.param_stack_idx].line_width);
+            break;
+
+        case CONTENT_OP_q: /* push parameter stack */
+            res = render_operation_q(&gs);
+            break;
+
+        case CONTENT_OP_Q: /* pop parameter stack */
+            res = render_operation_Q(&gs);
+            break;
+
+        case CONTENT_OP_cm: /* change matrix */
+            res = render_operation_cm(operation, &gs);
             break;
 
         default:
