@@ -277,6 +277,19 @@ render_operation_l(struct content_operation *operation, struct graphics_state *g
 }
 
 static inline nspdferror
+render_operation_c(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->path[gs->path_idx++] = NSPDF_PATH_BEZIER;
+    gs->path[gs->path_idx++] = operation->u.number[0];
+    gs->path[gs->path_idx++] = operation->u.number[1];
+    gs->path[gs->path_idx++] = operation->u.number[2];
+    gs->path[gs->path_idx++] = operation->u.number[3];
+    gs->path[gs->path_idx++] = operation->u.number[4];
+    gs->path[gs->path_idx++] = operation->u.number[5];
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
 render_operation_re(struct content_operation *operation, struct graphics_state *gs)
 {
     gs->path[gs->path_idx++] = NSPDF_PATH_MOVE;
@@ -483,6 +496,10 @@ nspdf_page_render(struct nspdf_doc *doc,
 
         case CONTENT_OP_re: /* rectangle */
             res = render_operation_re(operation, &gs);
+            break;
+
+        case CONTENT_OP_c: /* curve */
+            res = render_operation_c(operation, &gs);
             break;
 
         case CONTENT_OP_h: /* close path */
