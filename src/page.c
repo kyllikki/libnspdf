@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <nspdf/page.h>
 
+#include "graphics_state.h"
 #include "cos_content.h"
 #include "cos_object.h"
 #include "pdf_doc.h"
@@ -30,6 +31,65 @@ struct page_table_entry {
     struct cos_rectangle artbox; /* default is crop box */
 
 };
+
+/**
+ * multiply pdf matricies
+ *
+ * pdf specifies its 3 x 3 transform matrix as six values and three constants
+ *        | t[0] t[1]  0 |
+ *   Mt = | t[2] t[3]  0 |
+ *        | t[4] t[5]  1 |
+ *
+ * this multiples two such matricies together
+ *   Mo = Ma * Mb
+ *
+ * Basic matrix expansion is
+ *   | a b c |   | A B C |   | aA+bP+cU aB+bQ+cV aC+bR+cW |
+ *   | p q r | * | P Q R | = | pA+qP+rU pB+qQ+rV pC+qR+rW |
+ *   | u v w |   | U V W |   | uA+vP+wU uB+vQ+wV uC+vR+wW |
+ *
+ * With the a and b arrays substituted
+ *   | o[0] o[1] 0 |
+ *   | o[2] o[3] 0 | =
+ *   | o[4] o[5] 1 |
+ *
+ *   | a[0] a[1] 0 |   | b[0] b[1] 0 |
+ *   | a[2] a[3] 0 | * | b[2] b[3] 0 | =
+ *   | a[4] a[5] 1 |   | b[4] b[5] 1 |
+ *
+ *   | a[0]*b[0]+a[1]*b[2]      a[0]*b[1]+a[1]*b[3]      0 |
+ *   | a[2]*b[0]+a[3]*b[2]      a[2]*b[1]+a[3]*b[3]      0 |
+ *   | a[4]*b[0]+a[5]*b[2]+b[4] a[4]*b[1]+a[5]*b[3]+b[5] 1 |
+ *
+ * \param a The array of six values for matrix a
+ * \param b The array of six values for matrix b
+ * \param o An array to receive six values resulting from Ma * Mb may be same array as a or b
+ * \return NSPDFERROR_OK on success
+ */
+static nspdferror
+pdf_matrix_multiply(float *a, float *b, float *o)
+{
+    float out[6]; /* result matrix array */
+
+    out[0] = a[0]*b[0] + a[1]*b[2];
+    out[1] = a[0]*b[1] + a[1]*b[3];
+    out[2] = a[2]*b[0] + a[3]*b[2];
+    out[3] = a[2]*b[1] + a[3]*b[3];
+    out[4] = a[4]*b[0] + a[5]*b[2] + b[4];
+    out[5] = a[4]*b[1] + a[5]*b[3] + b[5];
+
+    /* calculate and then assign output to allow input and output arrays to
+     * overlap
+     */
+    o[0] = out[0];
+    o[1] = out[1];
+    o[2] = out[2];
+    o[3] = out[3];
+    o[4] = out[4];
+    o[5] = out[5];
+
+    return NSPDFERROR_OK;
+}
 
 /**
  * recursively decodes a page tree
@@ -210,53 +270,6 @@ nspdf_page_count(struct nspdf_doc *doc, unsigned int *pages_out)
     return NSPDFERROR_OK;
 }
 
-/**
- * colourspaces
- * \todo extend this with full list from section 4.5.2
- */
-enum graphics_state_colorspace {
-    GSDeviceGray = 0, /* Default */
-    GSDeviceRGB,
-    GSDeviceCMYK,
-};
-
-struct graphics_state_color {
-    enum graphics_state_colorspace space;
-    union {
-        float gray; /* default is 0 - black */
-        float rgb[3];
-        float cmyk[3];
-    };
-};
-
-struct graphics_state_param {
-    float ctm[6]; /* current transform matrix */
-    /* clipping path */
-    struct graphics_state_color stroke_colour;
-    struct graphics_state_color other_colour;
-    /* text state */
-    float line_width;
-    unsigned int line_cap;
-    unsigned int line_join;
-    float miter_limit;
-    /* dash pattern */
-    /* rendering intent RelativeColorimetric */
-    bool stroke_adjustment;
-    /* blend mode: Normal */
-    /* soft mask */
-    /* alpha constant */
-    /* alpha source */
-};
-
-struct graphics_state {
-    float *path; /* current path */
-    unsigned int path_idx; /* current index into path */
-    unsigned int path_alloc; /* current number of path elements allocated */
-
-    struct graphics_state_param *param_stack; /* parameter stack */
-    unsigned int param_stack_idx;
-    unsigned int param_stack_alloc;
-};
 
 static inline nspdferror
 render_operation_m(struct content_operation *operation, struct graphics_state *gs)
@@ -362,6 +375,34 @@ render_operation_w(struct content_operation *operation, struct graphics_state *g
 }
 
 static inline nspdferror
+render_operation_i(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->param_stack[gs->param_stack_idx].flatness = operation->u.number[0];
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_M(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->param_stack[gs->param_stack_idx].miter_limit = operation->u.number[0];
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_j(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->param_stack[gs->param_stack_idx].line_join = operation->u.i[0];
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_J(struct content_operation *operation, struct graphics_state *gs)
+{
+    gs->param_stack[gs->param_stack_idx].line_cap = operation->u.i[0];
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
 render_operation_q(struct graphics_state *gs)
 {
     gs->param_stack[gs->param_stack_idx + 1] = gs->param_stack[gs->param_stack_idx];
@@ -379,64 +420,6 @@ render_operation_Q(struct graphics_state *gs)
 }
 
 
-/**
- * multiply pdf matricies
- *
- * pdf specifies its 3 x 3 transform matrix as six values and three constants
- *        | t[0] t[1]  0 |
- *   Mt = | t[2] t[3]  0 |
- *        | t[4] t[5]  1 |
- *
- * this multiples two such matricies together
- *   Mo = Ma * Mb
- *
- * Basic matrix expansion is
- *   | a b c |   | A B C |   | aA+bP+cU aB+bQ+cV aC+bR+cW |
- *   | p q r | * | P Q R | = | pA+qP+rU pB+qQ+rV pC+qR+rW |
- *   | u v w |   | U V W |   | uA+vP+wU uB+vQ+wV uC+vR+wW |
- *
- * With the a and b arrays substituted
- *   | o[0] o[1] 0 |
- *   | o[2] o[3] 0 | =
- *   | o[4] o[5] 1 |
- *
- *   | a[0] a[1] 0 |   | b[0] b[1] 0 |
- *   | a[2] a[3] 0 | * | b[2] b[3] 0 | =
- *   | a[4] a[5] 1 |   | b[4] b[5] 1 |
- *
- *   | a[0]*b[0]+a[1]*b[2]      a[0]*b[1]+a[1]*b[3]      0 |
- *   | a[2]*b[0]+a[3]*b[2]      a[2]*b[1]+a[3]*b[3]      0 |
- *   | a[4]*b[0]+a[5]*b[2]+b[4] a[4]*b[1]+a[5]*b[3]+b[5] 1 |
- *
- * \param a The array of six values for matrix a
- * \param b The array of six values for matrix b
- * \param o An array to receive six values resulting from Ma * Mb may be same array as a or b
- * \return NSPDFERROR_OK on success
- */
-static nspdferror
-pdf_matrix_multiply(float *a, float *b, float *o)
-{
-    float out[6]; /* result matrix array */
-
-    out[0] = a[0]*b[0] + a[1]*b[2];
-    out[1] = a[0]*b[1] + a[1]*b[3];
-    out[2] = a[2]*b[0] + a[3]*b[2];
-    out[3] = a[2]*b[1] + a[3]*b[3];
-    out[4] = a[4]*b[0] + a[5]*b[2] + b[4];
-    out[5] = a[4]*b[1] + a[5]*b[3] + b[5];
-
-    /* calculate and then assign output to allow input and output arrays to
-     * overlap
-     */
-    o[0] = out[0];
-    o[1] = out[1];
-    o[2] = out[2];
-    o[3] = out[3];
-    o[4] = out[4];
-    o[5] = out[5];
-
-    return NSPDFERROR_OK;
-}
 
 /**
  * pre-multiply matrix
@@ -519,6 +502,7 @@ nspdf_page_render(struct nspdf_doc *doc,
          idx < page_content->length;
          idx++, operation++) {
         switch(operation->operator) {
+            /* path operations */
         case CONTENT_OP_m: /* move */
             res = render_operation_m(operation, &gs);
             break;
@@ -557,9 +541,25 @@ nspdf_page_render(struct nspdf_doc *doc,
             res = render_operation_S(&gs, render_ctx);
             break;
 
-        case CONTENT_OP_w:
+            /* graphics state operations */
+        case CONTENT_OP_w: /* line width */
             res = render_operation_w(operation, &gs);
-            //printf("line width:%f\n", gs.param_stack[gs.param_stack_idx].line_width);
+            break;
+
+        case CONTENT_OP_i: /* flatness */
+            res = render_operation_i(operation, &gs);
+            break;
+
+        case CONTENT_OP_j: /* line join style */
+            res = render_operation_j(operation, &gs);
+            break;
+
+        case CONTENT_OP_J: /* line cap style */
+            res = render_operation_J(operation, &gs);
+            break;
+
+        case CONTENT_OP_M: /* miter limit */
+            res = render_operation_M(operation, &gs);
             break;
 
         case CONTENT_OP_q: /* push parameter stack */
