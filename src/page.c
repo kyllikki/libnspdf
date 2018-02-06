@@ -378,45 +378,78 @@ render_operation_Q(struct graphics_state *gs)
     return NSPDFERROR_OK;
 }
 
+
+/**
+ * multiply pdf matricies
+ *
+ * pdf specifies its 3 x 3 transform matrix as six values and three constants
+ *        | t[0] t[1]  0 |
+ *   Mt = | t[2] t[3]  0 |
+ *        | t[4] t[5]  1 |
+ *
+ * this multiples two such matricies together
+ *   Mo = Ma * Mb
+ *
+ * Basic matrix expansion is
+ *   | a b c |   | A B C |   | aA+bP+cU aB+bQ+cV aC+bR+cW |
+ *   | p q r | * | P Q R | = | pA+qP+rU pB+qQ+rV pC+qR+rW |
+ *   | u v w |   | U V W |   | uA+vP+wU uB+vQ+wV uC+vR+wW |
+ *
+ * With the a and b arrays substituted
+ *   | o[0] o[1] 0 |
+ *   | o[2] o[3] 0 | =
+ *   | o[4] o[5] 1 |
+ *
+ *   | a[0] a[1] 0 |   | b[0] b[1] 0 |
+ *   | a[2] a[3] 0 | * | b[2] b[3] 0 | =
+ *   | a[4] a[5] 1 |   | b[4] b[5] 1 |
+ *
+ *   | a[0]*b[0]+a[1]*b[2]      a[0]*b[1]+a[1]*b[3]      0 |
+ *   | a[2]*b[0]+a[3]*b[2]      a[2]*b[1]+a[3]*b[3]      0 |
+ *   | a[4]*b[0]+a[5]*b[2]+b[4] a[4]*b[1]+a[5]*b[3]+b[5] 1 |
+ *
+ * \param a The array of six values for matrix a
+ * \param b The array of six values for matrix b
+ * \param o An array to receive six values resulting from Ma * Mb may be same array as a or b
+ * \return NSPDFERROR_OK on success
+ */
+static nspdferror
+pdf_matrix_multiply(float *a, float *b, float *o)
+{
+    float out[6]; /* result matrix array */
+
+    out[0] = a[0]*b[0] + a[1]*b[2];
+    out[1] = a[0]*b[1] + a[1]*b[3];
+    out[2] = a[2]*b[0] + a[3]*b[2];
+    out[3] = a[2]*b[1] + a[3]*b[3];
+    out[4] = a[4]*b[0] + a[5]*b[2] + b[4];
+    out[5] = a[4]*b[1] + a[5]*b[3] + b[5];
+
+    /* calculate and then assign output to allow input and output arrays to
+     * overlap
+     */
+    o[0] = out[0];
+    o[1] = out[1];
+    o[2] = out[2];
+    o[3] = out[3];
+    o[4] = out[4];
+    o[5] = out[5];
+
+    return NSPDFERROR_OK;
+}
+
 /**
  * pre-multiply matrix
  */
 static inline nspdferror
 render_operation_cm(struct content_operation *operation, struct graphics_state *gs)
 {
-    float M[6]; /* result matrix */
-    /* M' = Mt * M */
-    /* M' = Mo * Mc where Mo is operation and Mc is graphics state ctm */
-    /* | a b c |   | A B C |   | aA+bP+cU aB+bQ+cV aC+bR+cW |
-     * | p q r | * | P Q R | = | pA+qP+rU pB+qQ+rV pC+qR+rW |
-     * | u v w |   | U V W |   | uA+vP+wU uB+vQ+wV uC+vR+wW |
-     *
-     * | o[0] o[1] 0 |   | c[0] c[1] 0 |   | o[0]*c[0]+o[1]*c[2]      o[0]*c[1]+o[1]*c[3]      0 |
-     * | o[2] o[3] 0 | * | c[2] c[3] 0 | = | o[2]*c[0]+o[3]*c[2]      o[2]*c[1]+o[3]*c[3]      0 |
-     * | o[4] o[5] 1 |   | c[4] c[5] 1 |   | o[4]*c[0]+o[5]*c[2]+c[4] o[4]*c[1]+o[5]*c[3]+c[5] 1 |
+    /* Mres = Mop * Mctm
+     * where Mop is operation and Mctm is graphics state ctm
      */
-    M[0] = operation->u.number[0] * gs->param_stack[gs->param_stack_idx].ctm[0] +
-           operation->u.number[1] * gs->param_stack[gs->param_stack_idx].ctm[2];
-    M[1] = operation->u.number[0] * gs->param_stack[gs->param_stack_idx].ctm[1] +
-           operation->u.number[1] * gs->param_stack[gs->param_stack_idx].ctm[3];
-    M[2] = operation->u.number[2] * gs->param_stack[gs->param_stack_idx].ctm[0] +
-           operation->u.number[3] * gs->param_stack[gs->param_stack_idx].ctm[2];
-    M[3] = operation->u.number[2] * gs->param_stack[gs->param_stack_idx].ctm[1] +
-           operation->u.number[3] * gs->param_stack[gs->param_stack_idx].ctm[3];
-    M[4] = operation->u.number[4] * gs->param_stack[gs->param_stack_idx].ctm[0] +
-           operation->u.number[5] * gs->param_stack[gs->param_stack_idx].ctm[2] +
-           gs->param_stack[gs->param_stack_idx].ctm[4];
-    M[5] = operation->u.number[4] * gs->param_stack[gs->param_stack_idx].ctm[1] +
-           operation->u.number[5] * gs->param_stack[gs->param_stack_idx].ctm[3] +
-           gs->param_stack[gs->param_stack_idx].ctm[5];
-
-    gs->param_stack[gs->param_stack_idx].ctm[0] = M[0];
-    gs->param_stack[gs->param_stack_idx].ctm[1] = M[1];
-    gs->param_stack[gs->param_stack_idx].ctm[2] = M[2];
-    gs->param_stack[gs->param_stack_idx].ctm[3] = M[3];
-    gs->param_stack[gs->param_stack_idx].ctm[4] = M[4];
-    gs->param_stack[gs->param_stack_idx].ctm[5] = M[5];
-    return NSPDFERROR_OK;
+    return pdf_matrix_multiply(operation->u.number,
+                               gs->param_stack[gs->param_stack_idx].ctm,
+                               gs->param_stack[gs->param_stack_idx].ctm);
 }
 
 /**
