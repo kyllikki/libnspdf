@@ -29,16 +29,29 @@ struct graphics_state_color {
     enum graphics_state_colorspace space;
     union {
         float gray; /* default is 0 - black */
-        float rgb[3];
-        float cmyk[3];
-    };
+        struct {
+            float r;
+            float g;
+            float b;
+        } rgb;
+        struct {
+            float c;
+            float m;
+            float y;
+            float k;
+        } cmyk;
+    } u;
 };
 
 struct graphics_state_param {
     float ctm[6]; /* current transform matrix */
     /* clipping path */
-    struct graphics_state_color stroke_colour;
-    struct graphics_state_color other_colour;
+    struct {
+        struct graphics_state_color colour;
+    } stroke;
+    struct {
+        struct graphics_state_color colour;
+    } other;
     /* text state */
     float line_width;
     unsigned int line_cap;

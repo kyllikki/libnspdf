@@ -330,13 +330,67 @@ render_operation_h(struct graphics_state *gs)
 }
 
 static inline nspdferror
+gsc_to_device(struct graphics_state_color * gsc, uint32_t *c_out)
+{
+    uint32_t c;
+    unsigned int v;
+
+    switch (gsc->space) {
+    case GSDeviceGray:
+        v = gsc->u.gray * 255.0;
+        v = v & 0xff;
+        c = v | (v << 8) | (v << 16);
+        break;
+
+    case GSDeviceRGB:
+        v = gsc->u.rgb.r * 255.0;
+        c = v & 0xff;
+        v = gsc->u.rgb.g * 255.0;
+        v = v & 0xff;
+        c |= v << 8;
+        v = gsc->u.rgb.b * 255.0;
+        v = v & 0xff;
+        c |= v << 16;
+        break;
+
+    case GSDeviceCMYK:
+        /* no color profile, this will look shocking */
+        v = (1.0 - ((gsc->u.cmyk.c * (1.0 - gsc->u.cmyk.k)) + gsc->u.cmyk.k)) * 255.0;
+        c = v & 0xff;
+        v = (1.0 - ((gsc->u.cmyk.m * (1.0 - gsc->u.cmyk.k)) + gsc->u.cmyk.k)) * 255.0;
+        v = v & 0xff;
+        c |= v << 8;
+        v = (1.0 - ((gsc->u.cmyk.y * (1.0 - gsc->u.cmyk.k)) + gsc->u.cmyk.k)) * 255.0;
+        v = v & 0xff;
+        c |= v << 16;
+        /*        if (c != 0) printf("setting %f %f %f %f %x\n",
+                           gsc->u.cmyk.c,
+                           gsc->u.cmyk.m,
+                           gsc->u.cmyk.y,
+                           gsc->u.cmyk.k,
+                           c);
+        */
+        break;
+
+    default:
+        c = 0;
+        break;
+    }
+
+    *c_out = c;
+
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
 render_operation_f(struct graphics_state *gs, struct nspdf_render_ctx* render_ctx)
 {
     struct nspdf_style style;
     style.stroke_type = NSPDF_OP_TYPE_NONE;
     style.stroke_colour = 0x01000000;
+
     style.fill_type = NSPDF_OP_TYPE_SOLID;
-    style.fill_colour = 0;
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].other.colour, &style.fill_colour);
 
     render_ctx->path(&style,
                      gs->path,
@@ -344,6 +398,7 @@ render_operation_f(struct graphics_state *gs, struct nspdf_render_ctx* render_ct
                      gs->param_stack[gs->param_stack_idx].ctm,
                      render_ctx->ctx);
     gs->path_idx = 0;
+
     return NSPDFERROR_OK;
 }
 
@@ -353,11 +408,13 @@ render_operation_S(struct graphics_state *gs, struct nspdf_render_ctx* render_ct
 {
     struct nspdf_style style;
 
-    style.stroke_type = NSPDF_OP_TYPE_SOLID;
-    style.stroke_colour = 0;
-    style.stroke_width = gs->param_stack[gs->param_stack_idx].line_width;
     style.fill_type = NSPDF_OP_TYPE_NONE;
     style.fill_colour = 0x01000000;
+
+    style.stroke_type = NSPDF_OP_TYPE_SOLID;
+    style.stroke_width = gs->param_stack[gs->param_stack_idx].line_width;
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].stroke.colour, &style.stroke_colour);
+
     render_ctx->path(&style,
                      gs->path,
                      gs->path_idx,
@@ -433,6 +490,186 @@ render_operation_cm(struct content_operation *operation, struct graphics_state *
     return pdf_matrix_multiply(operation->u.number,
                                gs->param_stack[gs->param_stack_idx].ctm,
                                gs->param_stack[gs->param_stack_idx].ctm);
+}
+
+
+static inline nspdferror
+set_gsc_grey(struct graphics_state_color *gsc, float gray)
+{
+    /* bounds check */
+    if (gray < 0.0) {
+        gray = 0.0;
+    } else if (gray > 1.0) {
+        gray = 1.0;
+    }
+
+    gsc->space = GSDeviceGray;
+    gsc->u.gray = gray;
+
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_G(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_grey(&gs->param_stack[gs->param_stack_idx].stroke.colour,
+                        operation->u.number[0]);
+}
+
+static inline nspdferror
+render_operation_g(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_grey(&gs->param_stack[gs->param_stack_idx].other.colour,
+                        operation->u.number[0]);
+}
+
+static inline nspdferror
+set_gsc_rgb(struct graphics_state_color *gsc, float r, float g, float b)
+{
+    /* bounds check */
+    if (r < 0.0) {
+        r = 0.0;
+    } else if (r > 1.0) {
+        r = 1.0;
+    }
+    if (g < 0.0) {
+        g = 0.0;
+    } else if (g > 1.0) {
+        g = 1.0;
+    }
+    if (b < 0.0) {
+        b = 0.0;
+    } else if (b > 1.0) {
+        b = 1.0;
+    }
+
+    gsc->space = GSDeviceRGB;
+    gsc->u.rgb.r = r;
+    gsc->u.rgb.g = g;
+    gsc->u.rgb.b = b;
+
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_RG(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_rgb(&gs->param_stack[gs->param_stack_idx].stroke.colour,
+                       operation->u.number[0],
+                       operation->u.number[1],
+                       operation->u.number[2]);
+}
+
+static inline nspdferror
+render_operation_rg(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_rgb(&gs->param_stack[gs->param_stack_idx].other.colour,
+                       operation->u.number[0],
+                       operation->u.number[1],
+                       operation->u.number[2]);
+}
+
+static inline nspdferror
+set_gsc_cmyk(struct graphics_state_color *gsc, float c, float m, float y, float k)
+{
+    /* bounds check */
+    if (c < 0.0) {
+        c = 0.0;
+    } else if (c > 1.0) {
+        c = 1.0;
+    }
+    if (y < 0.0) {
+        y = 0.0;
+    } else if (y > 1.0) {
+        y = 1.0;
+    }
+    if (m < 0.0) {
+        m = 0.0;
+    } else if (m > 1.0) {
+        m = 1.0;
+    }
+    if (k < 0.0) {
+        k = 0.0;
+    } else if (k > 1.0) {
+        k = 1.0;
+    }
+
+    gsc->space = GSDeviceCMYK;
+    gsc->u.cmyk.c = c;
+    gsc->u.cmyk.m = m;
+    gsc->u.cmyk.y = y;
+    gsc->u.cmyk.k = k;
+
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_K(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_cmyk(&gs->param_stack[gs->param_stack_idx].stroke.colour,
+                       operation->u.number[0],
+                       operation->u.number[1],
+                       operation->u.number[2],
+                       operation->u.number[3]);
+}
+
+static inline nspdferror
+render_operation_k(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_cmyk(&gs->param_stack[gs->param_stack_idx].other.colour,
+                       operation->u.number[0],
+                       operation->u.number[1],
+                       operation->u.number[2],
+                       operation->u.number[3]);
+}
+
+static inline nspdferror
+set_gsc_cs(struct graphics_state_color *gsc, const char *spacename)
+{
+    if (strcmp(spacename, "DeviceGray") == 0) {
+        gsc->space = GSDeviceGray;
+        gsc->u.gray = 0.0;
+    } else if (strcmp(spacename, "DeviceRGB") == 0) {
+        gsc->space = GSDeviceRGB;
+        gsc->u.rgb.r = 0.0;
+        gsc->u.rgb.g = 0.0;
+        gsc->u.rgb.b = 0.0;
+    } else if (strcmp(spacename, "DeviceCMYK") == 0) {
+        gsc->space = GSDeviceCMYK;
+        gsc->u.cmyk.c = 0.0;
+        gsc->u.cmyk.m = 0.0;
+        gsc->u.cmyk.y = 0.0;
+        gsc->u.cmyk.k = 1.0;
+    } else {
+        /** \todo colourspace from name defined in the ColorSpace subdictionary of the current resource dictionary */
+        gsc->space = GSDeviceGray;
+        gsc->u.gray = 0.0;
+
+    }
+    //printf("cs %s %d\n", spacename, gsc->space);
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_CS(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_cs(&gs->param_stack[gs->param_stack_idx].stroke.colour,
+                        operation->u.name);
+}
+
+static inline nspdferror
+render_operation_cs(struct content_operation *operation,
+                   struct graphics_state *gs)
+{
+    return set_gsc_cs(&gs->param_stack[gs->param_stack_idx].other.colour,
+                        operation->u.name);
 }
 
 /**
@@ -573,6 +810,44 @@ nspdf_page_render(struct nspdf_doc *doc,
         case CONTENT_OP_cm: /* change matrix */
             res = render_operation_cm(operation, &gs);
             break;
+
+            /* colour operators */
+        case CONTENT_OP_G: /* gray stroking colour */
+            res = render_operation_G(operation, &gs);
+            break;
+
+        case CONTENT_OP_g: /* gray non-stroking colour */
+            res = render_operation_g(operation, &gs);
+            break;
+
+        case CONTENT_OP_RG: /* rgb stroking colour */
+            res = render_operation_RG(operation, &gs);
+            break;
+
+        case CONTENT_OP_rg: /* rgb non-stroking colour */
+            res = render_operation_rg(operation, &gs);
+            break;
+
+        case CONTENT_OP_K: /* CMYK stroking colour */
+            res = render_operation_K(operation, &gs);
+            break;
+
+        case CONTENT_OP_k: /* CMYK non-stroking colour */
+            res = render_operation_k(operation, &gs);
+            break;
+
+        case CONTENT_OP_CS: /* change stroking colourspace */
+            res = render_operation_CS(operation, &gs);
+            break;
+
+        case CONTENT_OP_cs: /* change non-stroking colourspace */
+            res = render_operation_cs(operation, &gs);
+            break;
+
+            //case CONTENT_OP_SC:
+            //case CONTENT_OP_sc:
+            //case CONTENT_OP_SCN:
+            //case CONTENT_OP_scn:
 
         default:
             printf("operator %s\n",
