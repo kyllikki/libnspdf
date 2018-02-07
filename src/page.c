@@ -330,6 +330,13 @@ render_operation_h(struct graphics_state *gs)
 }
 
 static inline nspdferror
+render_operation_n(struct graphics_state *gs)
+{
+    gs->path_idx = 0;
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
 gsc_to_device(struct graphics_state_color * gsc, uint32_t *c_out)
 {
     uint32_t c;
@@ -388,6 +395,50 @@ render_operation_f(struct graphics_state *gs, struct nspdf_render_ctx* render_ct
     struct nspdf_style style;
     style.stroke_type = NSPDF_OP_TYPE_NONE;
     style.stroke_colour = 0x01000000;
+
+    style.fill_type = NSPDF_OP_TYPE_SOLID;
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].other.colour, &style.fill_colour);
+
+    render_ctx->path(&style,
+                     gs->path,
+                     gs->path_idx,
+                     gs->param_stack[gs->param_stack_idx].ctm,
+                     render_ctx->ctx);
+    gs->path_idx = 0;
+
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_b(struct graphics_state *gs, struct nspdf_render_ctx* render_ctx)
+{
+    struct nspdf_style style;
+    style.stroke_type = NSPDF_OP_TYPE_SOLID;
+    style.stroke_width = gs->param_stack[gs->param_stack_idx].line_width;
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].stroke.colour, &style.stroke_colour);
+
+    style.fill_type = NSPDF_OP_TYPE_SOLID;
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].other.colour, &style.fill_colour);
+
+    gs->path[gs->path_idx++] = NSPDF_PATH_CLOSE;
+
+    render_ctx->path(&style,
+                     gs->path,
+                     gs->path_idx,
+                     gs->param_stack[gs->param_stack_idx].ctm,
+                     render_ctx->ctx);
+    gs->path_idx = 0;
+
+    return NSPDFERROR_OK;
+}
+
+static inline nspdferror
+render_operation_B(struct graphics_state *gs, struct nspdf_render_ctx* render_ctx)
+{
+    struct nspdf_style style;
+    style.stroke_type = NSPDF_OP_TYPE_SOLID;
+    style.stroke_width = gs->param_stack[gs->param_stack_idx].line_width;
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].stroke.colour, &style.stroke_colour);
 
     style.fill_type = NSPDF_OP_TYPE_SOLID;
     gsc_to_device(&gs->param_stack[gs->param_stack_idx].other.colour, &style.fill_colour);
@@ -762,11 +813,17 @@ nspdf_page_render(struct nspdf_doc *doc,
 
         case CONTENT_OP_f:
         case CONTENT_OP_f_:
+            res = render_operation_f(&gs, render_ctx);
+            break;
+
         case CONTENT_OP_B:
         case CONTENT_OP_B_:
+            res = render_operation_B(&gs, render_ctx);
+            break;
+
         case CONTENT_OP_b:
         case CONTENT_OP_b_:
-            res = render_operation_f(&gs, render_ctx);
+            res = render_operation_b(&gs, render_ctx);
             break;
 
         case CONTENT_OP_s:
@@ -776,6 +833,10 @@ nspdf_page_render(struct nspdf_doc *doc,
 
         case CONTENT_OP_S:
             res = render_operation_S(&gs, render_ctx);
+            break;
+
+        case CONTENT_OP_n: /* end path */
+            res = render_operation_n(&gs);
             break;
 
             /* graphics state operations */
