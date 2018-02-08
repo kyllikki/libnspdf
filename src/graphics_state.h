@@ -52,7 +52,17 @@ struct graphics_state_param {
     struct {
         struct graphics_state_color colour;
     } other;
-    /* text state */
+    /** text state */
+    struct {
+        float charspacing;
+        float wordspacing;
+        float hscale;
+        float leading;
+        float fontsize;
+        unsigned int rendermode;
+        float rise;
+        /* knockout */
+    } text;
     float line_width;
     unsigned int line_cap;
     unsigned int line_join;

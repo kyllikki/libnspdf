@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
+
 #include <nspdf/page.h>
 
 #include "graphics_state.h"
@@ -409,14 +411,31 @@ render_operation_f(struct graphics_state *gs, struct nspdf_render_ctx* render_ct
     return NSPDFERROR_OK;
 }
 
+static inline nspdferror
+scale_stroke_width(float *ctm, float unscaled, float *scaled)
+{
+    float avscale;
+    avscale = (fabs(ctm[0]) + fabs(ctm[3])) / 2.0; /* average scale of x and y axis */
+
+    *scaled = unscaled * avscale;
+    if (*scaled < 0.1) {
+        /*        printf("sx:%f sy:%f av:%f un:%f sc:%f\n",
+                  ctm[0], ctm[3], avscale, unscaled, *scaled);*/
+        *scaled = 0.1;
+    }
+    return NSPDFERROR_OK;
+}
 
 static inline nspdferror
 render_operation_B(struct graphics_state *gs, struct nspdf_render_ctx* render_ctx)
 {
     struct nspdf_style style;
     style.stroke_type = NSPDF_OP_TYPE_SOLID;
-    style.stroke_width = gs->param_stack[gs->param_stack_idx].line_width;
-    gsc_to_device(&gs->param_stack[gs->param_stack_idx].stroke.colour, &style.stroke_colour);
+    scale_stroke_width(gs->param_stack[gs->param_stack_idx].ctm,
+                       gs->param_stack[gs->param_stack_idx].line_width,
+                       &style.stroke_width);
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].stroke.colour,
+                  &style.stroke_colour);
 
     style.fill_type = NSPDF_OP_TYPE_SOLID;
     gsc_to_device(&gs->param_stack[gs->param_stack_idx].other.colour, &style.fill_colour);
@@ -441,8 +460,11 @@ render_operation_S(struct graphics_state *gs, struct nspdf_render_ctx* render_ct
     style.fill_colour = 0x01000000;
 
     style.stroke_type = NSPDF_OP_TYPE_SOLID;
-    style.stroke_width = gs->param_stack[gs->param_stack_idx].line_width;
-    gsc_to_device(&gs->param_stack[gs->param_stack_idx].stroke.colour, &style.stroke_colour);
+    scale_stroke_width(gs->param_stack[gs->param_stack_idx].ctm,
+                       gs->param_stack[gs->param_stack_idx].line_width,
+                       &style.stroke_width);
+    gsc_to_device(&gs->param_stack[gs->param_stack_idx].stroke.colour,
+                  &style.stroke_colour);
 
     render_ctx->path(&style,
                      gs->path,

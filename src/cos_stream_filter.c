@@ -105,7 +105,7 @@ nspdf__cos_stream_filter(struct nspdf_doc *doc,
     nspdferror res;
 
     //printf("applying filter %s\n", filter_name);
-
+    /** \todo implement all the other mandantory stream filters */
     if (strcmp(filter_name, "FlateDecode") == 0) {
         res = cos_stream_inflate(doc, stream_out);
     } else {

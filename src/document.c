@@ -22,6 +22,22 @@
 #include "xref.h"
 #include "pdf_doc.h"
 
+/*
+ * And you may find yourself
+ * Writing another PDF parser
+ * And you may find yourself
+ * In a middle of a debug session
+ * And you may find yourself
+ * Behind an British English keyboard
+ * And you may find yourself in a gdb
+ * With a long stacktrace
+ * And you may ask yourself, well
+ * How did I get here?
+ *
+ * Andrew Shadura 2018
+ */
+
+
 #define SLEN(x) (sizeof((x)) - 1)
 
 /* byte data acessory, allows for more complex buffer handling in future */
